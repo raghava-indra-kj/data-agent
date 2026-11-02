@@ -11,7 +11,7 @@ x-backend-service: &backend-service
       required: false
   environment: &backend-environment
     APP_ENV: "${APP_ENV:-development}"
-    DATABASE_URL: "${CONTAINER_DATABASE_URL:-postgresql+asyncpg://dbassistant:dbassistant@postgres:5432/dbassistant}"
+    DATABASE_URL: "${CONTAINER_DATABASE_URL:-postgresql+asyncpg://data_agent_admin:root@postgres:5432/data_agent}"
     DATA_DIRECTORY: "/app/runtime-data"
     CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:12200","http://127.0.0.1:12200"]}'
     PASSWORD_RESET_URL_BASE: "${PASSWORD_RESET_URL_BASE:-http://localhost:12200/reset-password}"
@@ -24,9 +24,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: "${POSTGRES_DB:-dbassistant}"
-      POSTGRES_USER: "${POSTGRES_USER:-dbassistant}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-dbassistant}"
+      POSTGRES_DB: "${POSTGRES_DB:-data_agent}"
+      POSTGRES_USER: "${POSTGRES_USER:-data_agent_admin}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-root}"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

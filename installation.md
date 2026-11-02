@@ -7,21 +7,35 @@ application and its PostgreSQL database. Allow about 60 minutes on a clean machi
 
 ---
 
-## 1. Versions at a glance
+## 1. Downloads
 
-| # | Software | Install this | Minimum enforced | Where |
+Every link below was checked on 2 November 2026. The **direct download** column starts the
+file immediately; the **download page** always shows the current release if the pinned
+version has moved on.
+
+| # | Software | Pinned version | Direct download (x64) | Download page |
 | --- | --- | --- | --- | --- |
-| 1 | Visual C++ Redistributable | Latest x64 (14.4x+) | — | [aka.ms/vs/17/release/vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
-| 2 | Python | 3.13.x (64-bit) | `>=3.12` | [python.org/downloads/windows](https://www.python.org/downloads/windows/) |
-| 3 | Node.js | 22.x LTS or 24.x LTS | `>=22.22.2` | [nodejs.org/en/download](https://nodejs.org/en/download) |
-| 4 | PostgreSQL | 16, 17 or 18 | 14+ | [postgresql.org/download/windows](https://www.postgresql.org/download/windows/) |
-| 5 | ODBC Driver for SQL Server | **18** (18.6.2.1) | 18 | [Microsoft download page](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) |
+| 1 | Python | 3.13.15 | [python-3.13.15-amd64.exe](https://www.python.org/ftp/python/3.13.15/python-3.13.15-amd64.exe) | [python.org/downloads/windows](https://www.python.org/downloads/windows/) |
+| 2 | Node.js | 24.22.2 LTS | [node-v24.22.2-x64.msi](https://nodejs.org/dist/v24.22.2/node-v24.22.2-x64.msi) | [nodejs.org/en/download](https://nodejs.org/en/download) |
+| 3 | PostgreSQL | 16, 17 or 18 | *(choose on the page)* | [enterprisedb.com/downloads/postgres-postgresql-downloads](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads) |
+| 4 | ODBC Driver for SQL Server | 18.7.1.1 | [msodbcsql18 x64](https://go.microsoft.com/fwlink/?linkid=2378279) | [Microsoft download page](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) |
+| 5 | Visual C++ Redistributable *(usually already present)* | latest | [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe) | [Latest supported downloads](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) |
 
-**Install in this order.** Item 1 is a prerequisite for item 5 — the ODBC driver installer
-fails without it.
+### Version requirements
 
-Only the *minimum* column is enforced by the project. Patch releases newer than the
-"install this" column are fine.
+| Software | Minimum the project enforces | Where that comes from |
+| --- | --- | --- |
+| Python | `>=3.12` | `backend/pyproject.toml` |
+| Node.js | `>=22.22.2` | `frontend/package.json` |
+| PostgreSQL | 14+ | migrations use `SKIP LOCKED` and `LISTEN`/`NOTIFY` |
+| ODBC Driver | 18 | default in the MSSQL datasource config |
+
+Newer patch releases are fine. The pinned versions are what this guide was verified
+against, and pinning them keeps every developer machine identical.
+
+**Not x64?** Use [x86](https://go.microsoft.com/fwlink/?linkid=2378646) or
+[ARM64](https://go.microsoft.com/fwlink/?linkid=2378647) for the ODBC driver, and pick the
+matching installer on each download page for the rest.
 
 ---
 
@@ -44,8 +58,11 @@ only where a step says so.
 
 ## 3. Step 1 — Visual C++ Redistributable
 
-The Microsoft ODBC driver is built against the Visual C++ runtime. Install this first or
-step 5 fails.
+**Most machines can skip this.** Windows usually has it already, and ODBC Driver **18.7
+and later no longer require it** — Microsoft removed the prerequisite in 18.7.
+
+Do this step only if the check below finds nothing, or if you are installing ODBC Driver
+18.6 or earlier, where the installer fails without it and the error does not say why.
 
 ### Check
 
@@ -191,14 +208,23 @@ next step.
 
 ### Create the application database and user
 
+Every machine uses the same names and password, so one `.env` works everywhere:
+
+| Setting | Value |
+| --- | --- |
+| Database | `data_agent` |
+| Role | `data_agent_admin` |
+| Password | `root` |
+
+> **Local development only.** This password is deliberately trivial so every developer
+> machine matches. PostgreSQL here listens on `127.0.0.1` and holds no production data. For
+> any shared, hosted or internet-reachable server, use a real password and a role without
+> `CREATEDB`.
+
 Run this as administrator. It prompts for the `postgres` password:
 
 ```powershell
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h 127.0.0.1 -c "CREATE ROLE dataagent LOGIN PASSWORD 'choose-a-strong-password';"
-```
-
-```powershell
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h 127.0.0.1 -c "CREATE DATABASE dbassistant OWNER dataagent;"
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h 127.0.0.1 -c "CREATE ROLE data_agent_admin LOGIN PASSWORD 'root';" -c "CREATE DATABASE data_agent OWNER data_agent_admin;"
 ```
 
 Setting `OWNER` matters — it gives the application full rights on its own database, so no
@@ -207,10 +233,10 @@ further grants are needed.
 ### Verify
 
 ```powershell
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U dataagent -h 127.0.0.1 -d dbassistant -c "SELECT current_database(), current_user;"
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U data_agent_admin -h 127.0.0.1 -d data_agent -c "SELECT current_database(), current_user;"
 ```
 
-Expected: one row showing `dbassistant` and `dataagent`.
+Expected: one row showing `data_agent` and `data_agent_admin`.
 
 ---
 
@@ -229,14 +255,20 @@ Expected to include `ODBC Driver 18 for SQL Server`.
 
 ### Install
 
-1. Confirm step 1 is done. The installer fails without the Visual C++ Redistributable.
-2. Download **msodbcsql18.msi (x64)**, currently version 18.6.2.1, from the
-   [Microsoft download page](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server).
-3. Run it, accept the licence, and keep the default feature set (the ODBC driver itself).
+1. Download **msodbcsql18.msi**, version 18.7.1.1, released 7 September 2026:
+   [x64](https://go.microsoft.com/fwlink/?linkid=2378279) ·
+   [x86](https://go.microsoft.com/fwlink/?linkid=2378646) ·
+   [ARM64](https://go.microsoft.com/fwlink/?linkid=2378647)
+2. Run it, accept the licence, and keep the default feature set (the ODBC driver itself).
    The SDK component is optional.
 
-Installing 18.6.x upgrades any earlier 18.x in place. Driver 17 can stay installed
+Installing 18.7.x upgrades any earlier 18.x in place. Driver 17 can stay installed
 alongside; they do not conflict.
+
+> **18.7 dropped the Visual C++ prerequisite.** If you install 18.7.1.1 or later you can
+> skip step 1 entirely. Only 18.6 and earlier need the redistributable preinstalled.
+
+The x64 and ARM64 installers each install both the 64-bit and 32-bit drivers.
 
 ### Verify
 
@@ -258,7 +290,7 @@ step 12's **Test connection** is the real check that the driver can reach your s
 ### Get the code
 
 ```powershell
-git clone https://github.com/<org>/data-agent-poc.git C:\Projects\data-agent
+git clone https://github.com/raghavendra-jayaramu-thermofisher/data-agent-poc.git C:\Projects\data-agent
 ```
 
 ```powershell
@@ -320,7 +352,7 @@ A credential encryption key (must decode to exactly 32 bytes):
 Set these five values:
 
 ```dotenv
-DATABASE_URL=postgresql+asyncpg://dataagent:choose-a-strong-password@127.0.0.1:5432/dbassistant
+DATABASE_URL=postgresql+asyncpg://data_agent_admin:root@127.0.0.1:5432/data_agent
 JWT_SECRET=<output of the first command>
 SECRET_ENCRYPTION_CURRENT_VERSION=v1
 SECRET_ENCRYPTION_KEYS={"v1":"<output of the second command>"}
@@ -465,7 +497,7 @@ recommended — the application never writes to your data sources.
 | `Python was not found` | Not on PATH, or a Store alias | Reinstall with "Add python.exe to PATH" ticked, then open a new window |
 | `node` or `npm.cmd` not recognised | PATH not refreshed | Open a new PowerShell window |
 | `npm : cannot be loaded ... execution policy` | PowerShell script policy | Use `npm.cmd` instead of `npm` |
-| ODBC driver installer fails immediately | Visual C++ Redistributable missing | Complete step 1, then retry |
+| ODBC driver installer fails immediately | Visual C++ Redistributable missing (only affects 18.6 and earlier) | Complete step 1, or install 18.7.1.1 which does not need it |
 | `Data source name not found and no default driver specified` | Driver 18 not installed, or name misspelled | Run the step 5 check; the name must match exactly |
 | `SSL Provider: The certificate chain was issued by an authority that is not trusted` | Self-signed certificate on SQL Server | Enable "Trust server certificate" on the datasource |
 | `Login failed for user` | Wrong SQL credentials, or SQL auth disabled on the server | Verify in SSMS; the server must allow SQL Server authentication |
