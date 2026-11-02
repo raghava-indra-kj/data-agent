@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 
-from redis.asyncio import Redis
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,10 +23,9 @@ from app.knowledge.schemas import (
 
 
 class KnowledgeService:
-    def __init__(self, session: AsyncSession, settings: Settings, *, redis: Redis | None = None) -> None:
+    def __init__(self, session: AsyncSession, settings: Settings) -> None:
         self.session = session
         self.settings = settings
-        self.redis = redis
         self.repo = KnowledgeRepository(session)
         self.data_sources = DataSourceRepository(session)
 
@@ -77,8 +75,6 @@ class KnowledgeService:
         organization_id: uuid.UUID,
         requested_by: uuid.UUID,
     ) -> tuple[KnowledgeBase, uuid.UUID]:
-        if self.redis is None:
-            raise RuntimeError("Redis is required to enqueue knowledge generation")
         source = await self.require_source(data_source_id, organization_id)
         if source.status == "disabled":
             raise AppError("DATASOURCE_DISABLED", "The datasource is disabled.", 409)
@@ -90,7 +86,7 @@ class KnowledgeService:
         base.status = "generating"
         base.last_error_code = None
         await self.session.flush()
-        job = await JobService(self.session, self.redis, self.settings).create_job(
+        job = await JobService(self.session, self.settings).create_job(
             organization_id=organization_id,
             requested_by=requested_by,
             job_type="knowledge_generation",

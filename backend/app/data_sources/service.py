@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import UploadFile
-from redis.asyncio import Redis
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,12 +41,10 @@ class DataSourceService:
         session: AsyncSession,
         settings: Settings,
         *,
-        redis: Redis | None = None,
         adapter_registry: DataSourceAdapterRegistry = registry,
     ) -> None:
         self.session = session
         self.settings = settings
-        self.redis = redis
         self.repo = DataSourceRepository(session)
         self.secrets = SecretService(session, settings)
         self.storage = LocalDataSourceStorage(settings)
@@ -96,8 +93,6 @@ class DataSourceService:
         name: str,
         upload: UploadFile,
     ) -> tuple[DataSource, uuid.UUID]:
-        if self.redis is None:
-            raise RuntimeError("Redis is required to enqueue Excel materialization")
         clean_name = name.strip()
         if not clean_name:
             raise AppError("DATASOURCE_NAME_REQUIRED", "Datasource name is required.", 400)
@@ -139,7 +134,7 @@ class DataSourceService:
         self.repo.add_file(file)
         try:
             await self.session.flush()
-            job = await JobService(self.session, self.redis, self.settings).create_job(
+            job = await JobService(self.session, self.settings).create_job(
                 organization_id=organization_id,
                 requested_by=user_id,
                 job_type="excel_materialization",
@@ -168,8 +163,6 @@ class DataSourceService:
         data_source_id: uuid.UUID,
         upload: UploadFile,
     ) -> uuid.UUID:
-        if self.redis is None:
-            raise RuntimeError("Redis is required to enqueue Excel materialization")
         data_source = await self.require_for_org(data_source_id, organization_id)
         if data_source.kind != "duckdb" or data_source.display_type != "excel":
             raise AppError(
@@ -201,7 +194,7 @@ class DataSourceService:
             data_source.status = "preparing"
         try:
             await self.session.flush()
-            job = await JobService(self.session, self.redis, self.settings).create_job(
+            job = await JobService(self.session, self.settings).create_job(
                 organization_id=organization_id,
                 requested_by=user_id,
                 job_type="excel_materialization",
@@ -385,10 +378,8 @@ class DataSourceService:
         organization_id: uuid.UUID,
         requested_by: uuid.UUID,
     ) -> uuid.UUID:
-        if self.redis is None:
-            raise RuntimeError("Redis is required to enqueue datasource tests")
         await self.require_for_org(data_source_id, organization_id)
-        job = await JobService(self.session, self.redis, self.settings).create_job(
+        job = await JobService(self.session, self.settings).create_job(
             organization_id=organization_id,
             requested_by=requested_by,
             job_type="datasource_test",

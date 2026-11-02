@@ -36,7 +36,6 @@ from app.agent.tool_schemas import (
 from app.conversations.table_scope import SourceTableScope
 from app.core.config import Settings, get_settings
 from app.core.database import get_session_factory
-from app.core.redis import get_redis
 from app.core.time import utc_now
 from app.data_sources.errors import DataSourceOperationError
 from app.data_sources.service import DataSourceService
@@ -134,7 +133,7 @@ async def append_agent_event(
 ) -> None:
     settings = get_settings()
     async with get_session_factory()() as session:
-        await JobService(session, get_redis(), settings).append_event(
+        await JobService(session, settings).append_event(
             job_id, event_type, payload, level=level
         )
 

@@ -54,7 +54,6 @@ async def test_export_checks_org_and_source_before_exporting(monkeypatch, failur
         authorized.side_effect = AppError("NOT_FOUND", "Not found", 404)
     monkeypatch.setattr(router, "AgentExecutionRepository", lambda _: repo)
     monkeypatch.setattr(router, "JobService", lambda *_: SimpleNamespace(get_for_org=authorized))
-    monkeypatch.setattr(router, "get_redis", lambda: None)
     state = (
         MatrixViewState(collapsed_rows=["r" + "0" * 24])
         if failure == "bad_state"

@@ -4,7 +4,6 @@ import uuid
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import Response
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit.service import AuditService
@@ -13,7 +12,6 @@ from app.auth.models import User
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
 from app.core.errors import AppError
-from app.core.redis import get_redis
 from app.data_sources.errors import DataSourceOperationError
 from app.data_sources.schemas import (
     ColumnMetadataResponse,
@@ -100,12 +98,11 @@ async def create_excel_data_source(
     current_user: User = Depends(get_current_user),
     context: tuple[Organization, OrganizationMembership] = Depends(get_current_organization),
     session: AsyncSession = Depends(get_db_session),
-    redis: Redis = Depends(get_redis),
     settings: Settings = Depends(get_settings),
 ) -> ExcelUploadResponse:
     organization, membership = context
     require_admin(membership)
-    service = DataSourceService(session, settings, redis=redis)
+    service = DataSourceService(session, settings)
     item, job_id = await service.create_excel(
         organization_id=organization.id,
         user_id=current_user.id,
@@ -186,12 +183,11 @@ async def test_data_source(
     current_user: User = Depends(get_current_user),
     context: tuple[Organization, OrganizationMembership] = Depends(get_current_organization),
     session: AsyncSession = Depends(get_db_session),
-    redis: Redis = Depends(get_redis),
     settings: Settings = Depends(get_settings),
 ) -> JobAcceptedResponse:
     organization, membership = context
     require_admin(membership)
-    job_id = await DataSourceService(session, settings, redis=redis).enqueue_test(
+    job_id = await DataSourceService(session, settings).enqueue_test(
         data_source_id=data_source_id,
         organization_id=organization.id,
         requested_by=current_user.id,
@@ -255,12 +251,11 @@ async def replace_excel_data_source(
     current_user: User = Depends(get_current_user),
     context: tuple[Organization, OrganizationMembership] = Depends(get_current_organization),
     session: AsyncSession = Depends(get_db_session),
-    redis: Redis = Depends(get_redis),
     settings: Settings = Depends(get_settings),
 ) -> JobAcceptedResponse:
     organization, membership = context
     require_admin(membership)
-    job_id = await DataSourceService(session, settings, redis=redis).replace_excel(
+    job_id = await DataSourceService(session, settings).replace_excel(
         organization_id=organization.id,
         user_id=current_user.id,
         data_source_id=data_source_id,

@@ -22,7 +22,6 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
 
     database_url: str = "postgresql+asyncpg://dbassistant:dbassistant@localhost:12202/dbassistant"
-    redis_url: str = "redis://localhost:12203/0"
 
     jwt_secret: str = Field(default="development-only-change-me-please-32chars")
     jwt_algorithm: Literal["HS256", "HS384", "HS512"] = "HS256"
@@ -39,13 +38,14 @@ class Settings(BaseSettings):
     smtp_from_email: str | None = None
     smtp_starttls: bool = True
 
-    redis_job_stream: str = "dbassistant:jobs"
-    redis_job_group: str = "dbassistant-workers"
     worker_id: str | None = None
-    worker_block_ms: int = Field(default=5000, ge=100, le=60000)
+    # Fallback poll interval. LISTEN/NOTIFY normally wakes the worker first; this only bounds
+    # how long a missed notification can delay a queued job.
+    worker_poll_interval_ms: int = Field(default=5000, ge=100, le=60000)
     worker_lease_seconds: int = Field(default=60, ge=10, le=3600)
     worker_heartbeat_seconds: int = Field(default=20, ge=2, le=1800)
-    worker_stale_idle_ms: int = Field(default=60000, ge=1000)
+    # How long a reserved job stays hidden from other workers before it is offered again.
+    worker_reservation_seconds: int = Field(default=60, ge=1, le=3600)
     worker_concurrency: int = Field(default=4, ge=1, le=32)
     job_max_attempts: int = Field(default=3, ge=1, le=10)
     max_active_jobs_per_user: int = Field(default=5, ge=1, le=100)

@@ -324,7 +324,7 @@ def clarification_messages(original_metadata: dict[str, object]):
 @pytest.mark.asyncio
 async def test_answers_continue_the_original_request_with_the_next_round():
     asked, original = clarification_messages({"instruction_id": "inst-1", "command": "kpi"})
-    service = ConversationService(AsyncMock(), Settings(_env_file=None), redis=object())
+    service = ConversationService(AsyncMock(), Settings(_env_file=None))
     service.repo = FakeRepo(asked, original)
     service.submit_message = AsyncMock(return_value=("message", "job"))
 
@@ -350,7 +350,7 @@ async def test_answers_continue_the_original_request_with_the_next_round():
 @pytest.mark.asyncio
 async def test_answers_keep_the_reasoning_effort_of_the_original_question():
     asked, original = clarification_messages({"reasoning_effort": "high"})
-    service = ConversationService(AsyncMock(), Settings(_env_file=None), redis=object())
+    service = ConversationService(AsyncMock(), Settings(_env_file=None))
     service.repo = FakeRepo(asked, original)
     service.submit_message = AsyncMock(return_value=("message", "job"))
 
@@ -368,7 +368,7 @@ async def test_answers_keep_the_reasoning_effort_of_the_original_question():
 @pytest.mark.asyncio
 async def test_answered_or_stale_questions_cannot_be_answered_again():
     asked, original = clarification_messages({"clarification_round": 1})
-    service = ConversationService(AsyncMock(), Settings(_env_file=None), redis=object())
+    service = ConversationService(AsyncMock(), Settings(_env_file=None))
     service.repo = FakeRepo(asked, original, answered_already=True)
     service.submit_message = AsyncMock()
     with pytest.raises(AppError) as error:
@@ -385,7 +385,7 @@ async def test_answered_or_stale_questions_cannot_be_answered_again():
 async def test_ordinary_answers_and_unknown_messages_are_not_clarifications():
     asked, original = clarification_messages({})
     asked.metadata_json = {"follow_up_suggestions": []}
-    service = ConversationService(AsyncMock(), Settings(_env_file=None), redis=object())
+    service = ConversationService(AsyncMock(), Settings(_env_file=None))
     service.repo = FakeRepo(asked, original)
     with pytest.raises(AppError) as error:
         await service.answer_clarification(

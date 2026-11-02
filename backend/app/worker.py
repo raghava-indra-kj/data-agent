@@ -13,7 +13,7 @@ from app.conversations import models as conversation_models  # noqa: F401
 from app.core.config import get_settings
 from app.core.database import close_database
 from app.core.logging import configure_logging
-from app.core.redis import close_redis
+from app.core.listener import close_listener
 from app.data_sources import models as data_source_models  # noqa: F401
 from app.data_sources.jobs import register_data_source_handlers
 from app.jobs import models as job_models  # noqa: F401
@@ -44,7 +44,7 @@ async def main() -> None:
         await worker.run()
     finally:
         await close_checkpointer()
-        await close_redis()
+        await close_listener()
         await close_database()
 
 

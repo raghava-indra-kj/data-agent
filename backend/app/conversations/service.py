@@ -4,7 +4,6 @@ import re
 import uuid
 from datetime import datetime
 
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.checkpoints import delete_job_checkpoints
@@ -40,16 +39,9 @@ from app.models.service import ModelConfigurationService
 
 
 class ConversationService:
-    def __init__(
-        self,
-        session: AsyncSession,
-        settings: Settings,
-        *,
-        redis: Redis | None = None,
-    ) -> None:
+    def __init__(self, session: AsyncSession, settings: Settings) -> None:
         self.session = session
         self.settings = settings
-        self.redis = redis
         self.repo = ConversationRepository(session)
 
     async def verify_message(self, conversation_id, message_id, organization_id, user, role, payload: MessageVerificationUpdate) -> Message:
@@ -238,7 +230,7 @@ class ConversationService:
         content: str,
     ) -> tuple[Message, uuid.UUID]:
         """Record the answers on the paused job and queue it to continue where it stopped."""
-        jobs = JobService(self.session, self.redis, self.settings)
+        jobs = JobService(self.session, self.settings)
         job = (
             await JobRepository(self.session).lock_for_organization(asked.job_id, organization_id)
             if asked.job_id
@@ -291,7 +283,7 @@ class ConversationService:
         waiting = await repo.waiting_chat_for_conversation(conversation_id)
         if waiting is None:
             return
-        jobs = JobService(self.session, self.redis, self.settings)
+        jobs = JobService(self.session, self.settings)
         if not jobs.pause_expired(waiting):
             raise AppError(
                 "CLARIFICATION_PENDING",
@@ -374,8 +366,6 @@ class ConversationService:
         payload: MessageCreate,
         extra_metadata: dict[str, object] | None = None,
     ) -> tuple[Message, uuid.UUID]:
-        if self.redis is None:
-            raise RuntimeError("Redis is required to submit analytical messages")
         conversation = await self.require_for_org(conversation_id, organization_id)
         await self._ensure_no_pending_questions(conversation.id)
         source_ids = await self.repo.source_ids(conversation.id)
@@ -451,7 +441,7 @@ class ConversationService:
             conversation.title = default_conversation_title(payload.content)
         await self.session.flush()
 
-        job = await JobService(self.session, self.redis, self.settings).create_job(
+        job = await JobService(self.session, self.settings).create_job(
             organization_id=organization_id,
             requested_by=user_id,
             job_type="chat_query",

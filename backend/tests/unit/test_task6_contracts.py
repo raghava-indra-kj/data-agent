@@ -62,7 +62,7 @@ def test_maintenance_removes_only_old_temp_duckdb_files(tmp_path: Path) -> None:
     os.utime(old, (old_time, old_time))
 
     settings = Settings(data_directory=tmp_path, temporary_file_retention_hours=24)
-    service = MaintenanceService(session=None, redis=None, settings=settings)  # type: ignore[arg-type]
+    service = MaintenanceService(session=None, settings=settings)  # type: ignore[arg-type]
     assert service.cleanup_temporary_files() == 1
     assert not old.exists()
     assert recent.exists()

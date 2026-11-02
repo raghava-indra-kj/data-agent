@@ -10,7 +10,6 @@ from app.auth.repository import AuthRepository
 from app.core.config import get_settings
 from app.core.database import get_session_factory
 from app.core.errors import AppError
-from app.core.redis import get_redis
 from app.core.time import utc_now
 from app.data_sources.models import DataSource
 from app.data_sources.types import QueryResult
@@ -63,9 +62,8 @@ async def test_dashboard_crud_and_audit(client: AsyncClient) -> None:
 async def test_active_job_limit_is_enforced_atomically(client: AsyncClient) -> None:
     _, user_id, org_id = await identity(client, "task6-limits@example.com")
     settings = get_settings()
-    redis = get_redis()
     async with get_session_factory()() as session:
-        service = JobService(session, redis, settings)
+        service = JobService(session, settings)
         for index in range(settings.max_active_jobs_per_user):
             await service.create_job(
                 organization_id=org_id,
@@ -211,13 +209,13 @@ async def test_save_widget_and_background_refresh_preserves_provenance(
 
     monkeypatch.setattr("app.reporting.jobs.DataSourceService.resolve_adapter", fake_resolve)
     async with get_session_factory()() as session:
-        claimed = await JobService(session, get_redis(), get_settings()).claim(
+        claimed = await JobService(session, get_settings()).claim(
             refresh_job_id, "task6-test-worker"
         )
         assert claimed is not None
     result = await run_dashboard_refresh_job(refresh_job_id)
     async with get_session_factory()() as session:
-        await JobService(session, get_redis(), get_settings()).complete(refresh_job_id, result)
+        await JobService(session, get_settings()).complete(refresh_job_id, result)
         saved = await session.get(DashboardWidget, widget_id)
         assert saved is not None
         assert saved.last_refresh_job_id == refresh_job_id

@@ -2,35 +2,33 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import asdict, dataclass
-from datetime import datetime
 
-from redis.asyncio import Redis
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.listener import JOB_EVENTS_CHANNEL, JOBS_CHANNEL
 
-@dataclass(frozen=True, slots=True)
-class LiveJobEvent:
-    job_id: uuid.UUID
-    sequence: int
-    event_type: str
-    level: str
-    payload: dict[str, object]
-    created_at: datetime
-
-    def to_json(self) -> str:
-        payload = asdict(self)
-        payload["job_id"] = str(self.job_id)
-        payload["created_at"] = self.created_at.isoformat()
-        return json.dumps(payload, separators=(",", ":"), default=str)
+_NOTIFY = text("SELECT pg_notify(:channel, :payload)")
 
 
-class RedisJobEventBus:
-    def __init__(self, redis: Redis) -> None:
-        self.redis = redis
+async def notify_job_event(session: AsyncSession, job_id: uuid.UUID, sequence: int) -> None:
+    """Announce a durable job event to live listeners.
 
-    @staticmethod
-    def channel(job_id: uuid.UUID) -> str:
-        return f"dbassistant:job:{job_id}:events"
+    The payload carries only a pointer. NOTIFY caps payloads at 8000 bytes and job event
+    payloads are unbounded JSONB, so subscribers read the row itself from job_events.
 
-    async def publish(self, event: LiveJobEvent) -> None:
-        await self.redis.publish(self.channel(event.job_id), event.to_json())
+    PostgreSQL delivers this when the surrounding transaction commits, which makes the
+    announcement atomic with the write it announces.
+    """
+    await session.execute(
+        _NOTIFY,
+        {
+            "channel": JOB_EVENTS_CHANNEL,
+            "payload": json.dumps({"job_id": str(job_id), "sequence": sequence}),
+        },
+    )
+
+
+async def notify_job_queued(session: AsyncSession) -> None:
+    """Wake an idle worker once this transaction commits."""
+    await session.execute(_NOTIFY, {"channel": JOBS_CHANNEL, "payload": ""})

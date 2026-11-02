@@ -4,7 +4,6 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_organization, get_current_user
@@ -13,7 +12,6 @@ from app.audit.service import AuditService
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
 from app.core.errors import AppError
-from app.core.redis import get_redis
 from app.knowledge.compact import compact_schema
 from app.knowledge.schemas import (
     CompactSchemaResponse,
@@ -92,12 +90,11 @@ async def generate_knowledge(
     current_user: User = Depends(get_current_user),
     context: tuple[Organization, OrganizationMembership] = Depends(get_current_organization),
     session: AsyncSession = Depends(get_db_session),
-    redis: Redis = Depends(get_redis),
     settings: Settings = Depends(get_settings),
 ) -> KnowledgeJobResponse:
     organization, membership = context
     require_admin(membership)
-    base, job_id = await KnowledgeService(session, settings, redis=redis).enqueue_generation(
+    base, job_id = await KnowledgeService(session, settings).enqueue_generation(
         data_source_id=data_source_id,
         organization_id=organization.id,
         requested_by=current_user.id,

@@ -7,13 +7,12 @@ from collections.abc import AsyncIterator
 import pytest
 import pytest_asyncio
 
-pytest.importorskip("redis", reason="Install project dependencies to run integration tests")
 pytest.importorskip("asyncpg", reason="Install project dependencies to run integration tests")
 pytest.importorskip("duckdb", reason="Install Task 2 dependencies to run integration tests")
 
 if os.getenv("RUN_INTEGRATION_TESTS") != "1":
     pytest.skip(
-        "Set RUN_INTEGRATION_TESTS=1 with PostgreSQL and Redis running to execute integration tests",
+        "Set RUN_INTEGRATION_TESTS=1 with PostgreSQL running to execute integration tests",
         allow_module_level=True,
     )
 
@@ -21,17 +20,15 @@ os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault(
     "DATABASE_URL", "postgresql+asyncpg://dbassistant:dbassistant@localhost:12202/dbassistant"
 )
-os.environ.setdefault("REDIS_URL", "redis://localhost:12203/15")
 os.environ.setdefault("JWT_SECRET", "integration-test-secret-that-is-long-enough-123456789")
 os.environ.setdefault("DATA_DIRECTORY", "/tmp/dbassistant-task6-integration")
 
 from httpx import ASGITransport, AsyncClient  # noqa: E402
-from redis.asyncio import Redis  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from app.core.config import get_settings  # noqa: E402
 from app.core.database import close_database, get_session_factory  # noqa: E402
-from app.core.redis import close_redis, get_redis  # noqa: E402
+from app.core.listener import close_listener  # noqa: E402
 from app.main import create_app  # noqa: E402
 
 
@@ -53,12 +50,11 @@ async def clean_state() -> AsyncIterator[None]:
             )
         )
         await session.commit()
-    redis = get_redis()
-    await redis.flushdb()
+    # Truncating jobs and job_events clears the queue too: the rows are the queue.
     import shutil
     shutil.rmtree("/tmp/dbassistant-task6-integration", ignore_errors=True)
     yield
-    await close_redis()
+    await close_listener()
     await close_database()
     import shutil
     shutil.rmtree("/tmp/dbassistant-task6-integration", ignore_errors=True)
@@ -70,8 +66,3 @@ async def client() -> AsyncIterator[AsyncClient]:
     async with app.router.lifespan_context(app):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as http:
             yield http
-
-
-@pytest_asyncio.fixture
-async def redis_client() -> Redis:
-    return get_redis()

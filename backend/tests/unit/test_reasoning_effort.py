@@ -120,7 +120,7 @@ def test_message_effort_must_be_a_known_value() -> None:
 
 
 def conversation_service(model_name: str) -> ConversationService:
-    service = ConversationService(AsyncMock(), Settings(_env_file=None), redis=object())
+    service = ConversationService(AsyncMock(), Settings(_env_file=None))
     service.require_for_org = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4(), table_scope=[], title="T"))
     service._ensure_no_pending_questions = AsyncMock()
     service.repo = SimpleNamespace(source_ids=AsyncMock(return_value=[uuid.uuid4()]), add_message=lambda _m: None)

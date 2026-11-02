@@ -20,7 +20,7 @@ from app.core.config import get_settings
 from app.core.database import close_database
 from app.core.errors import install_exception_handlers
 from app.core.logging import configure_logging
-from app.core.redis import close_redis
+from app.core.listener import close_listener, get_listener
 from app.core.request_id import RequestIdMiddleware
 from app.health import router as health_router
 from app.exports.router import router as exports_router
@@ -45,8 +45,10 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        # One connection per process feeds every live job-event stream.
+        await get_listener().start()
         yield
-        await close_redis()
+        await close_listener()
         await close_database()
 
     app = FastAPI(title=settings.app_name, version="0.6.0", lifespan=lifespan)

@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Query
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.clarification import ClarificationAnswers
@@ -25,7 +24,6 @@ from app.conversations.service import ConversationService
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
 from app.core.pagination import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
-from app.core.redis import get_redis
 from app.organizations.models import Organization, OrganizationMembership
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
@@ -154,11 +152,10 @@ async def submit_message(
     current_user: User = Depends(get_current_user),
     context: tuple[Organization, OrganizationMembership] = Depends(get_current_organization),
     session: AsyncSession = Depends(get_db_session),
-    redis: Redis = Depends(get_redis),
     settings: Settings = Depends(get_settings),
 ) -> MessageAcceptedResponse:
     organization, _ = context
-    message, job_id = await ConversationService(session, settings, redis=redis).submit_message(
+    message, job_id = await ConversationService(session, settings).submit_message(
         conversation_id=conversation_id,
         organization_id=organization.id,
         user_id=current_user.id,
@@ -179,12 +176,11 @@ async def answer_clarification(
     current_user: User = Depends(get_current_user),
     context: tuple[Organization, OrganizationMembership] = Depends(get_current_organization),
     session: AsyncSession = Depends(get_db_session),
-    redis: Redis = Depends(get_redis),
     settings: Settings = Depends(get_settings),
 ) -> MessageAcceptedResponse:
     organization, _ = context
     message, job_id = await ConversationService(
-        session, settings, redis=redis
+        session, settings
     ).answer_clarification(
         conversation_id=conversation_id,
         message_id=message_id,

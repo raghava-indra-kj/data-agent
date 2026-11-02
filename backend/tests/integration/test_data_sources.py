@@ -11,7 +11,6 @@ from openpyxl import Workbook
 
 from app.core.config import get_settings
 from app.core.database import get_session_factory
-from app.core.redis import get_redis
 from app.data_sources.adapters.duckdb import DuckDBAdapter
 from app.data_sources.jobs import register_data_source_handlers
 from app.data_sources.repository import DataSourceRepository
@@ -19,7 +18,7 @@ from app.data_sources.schemas import DatabaseCredentials, MSSQLConfig, MySQLConf
 from app.data_sources.adapters.mssql import MSSQLAdapter
 from app.data_sources.adapters.mysql import MySQLAdapter
 from app.jobs.handlers import JobHandlerRegistry
-from app.jobs.queue import RedisJobQueue
+from app.jobs.queue import PgJobQueue
 from app.jobs.worker import Worker
 
 
@@ -54,16 +53,13 @@ def workbook_bytes(*, mixed: bool = False) -> bytes:
 
 async def run_next_job() -> None:
     settings = get_settings()
-    redis = get_redis()
-    queue = RedisJobQueue(redis, settings)
-    await queue.ensure_group()
-    messages = await queue.read("task2-integration-worker", count=1)
-    assert messages
+    job_ids = await PgJobQueue(settings).reserve(1)
+    assert job_ids
     handlers = JobHandlerRegistry()
     register_data_source_handlers(handlers)
     worker = Worker(settings, handlers)
     worker.worker_id = "task2-integration-worker"
-    await worker._process_message(messages[0])
+    await worker._process_job(job_ids[0])
 
 
 @pytest.mark.asyncio

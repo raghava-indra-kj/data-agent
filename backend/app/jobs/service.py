@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import datetime, timedelta
 
-from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,14 +10,11 @@ from app.conversations.models import Conversation
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.time import utc_now
-from app.jobs.events import LiveJobEvent, RedisJobEventBus
+from app.jobs.events import notify_job_event, notify_job_queued
 from app.jobs.models import Job, JobEvent
-from app.jobs.queue import RedisJobQueue
 from app.jobs.repository import JobRepository
 from app.jobs.state import TERMINAL_STATUSES, WAITING_STATUS, assert_transition
 from app.organizations.models import Organization
-
-logger = logging.getLogger(__name__)
 
 
 class JobDeferredError(Exception):
@@ -27,12 +22,10 @@ class JobDeferredError(Exception):
 
 
 class JobService:
-    def __init__(self, session: AsyncSession, redis: Redis, settings: Settings) -> None:
+    def __init__(self, session: AsyncSession, settings: Settings) -> None:
         self.session = session
         self.settings = settings
         self.repo = JobRepository(session)
-        self.queue = RedisJobQueue(redis, settings)
-        self.event_bus = RedisJobEventBus(redis)
 
     async def create_job(
         self,
@@ -74,13 +67,15 @@ class JobService:
             attempt_count=0,
             max_attempts=max_attempts or self.settings.job_max_attempts,
             created_at=now,
+            available_at=now,
         )
         self.repo.add(job)
         await self.session.flush()
-        event = await self._append_event_locked(job, "job.queued", {"job_type": job_type})
+        await self._append_event_locked(job, "job.queued", {"job_type": job_type})
+        # The row is the queue entry, so creating and enqueueing commit together. There is no
+        # window where a job exists but no worker will ever see it.
+        await notify_job_queued(self.session)
         await self.session.commit()
-        await self.queue.enqueue(job.id)
-        await self._publish_safely(event)
         return job
 
     async def list_for_org(
@@ -119,11 +114,10 @@ class JobService:
             assert_transition(job.status, "cancelled")
             job.status = "cancelled"
             job.finished_at = now
-            event = await self._append_event_locked(job, "job.cancelled", {})
+            await self._append_event_locked(job, "job.cancelled", {})
         else:
-            event = await self._append_event_locked(job, "job.cancel_requested", {})
+            await self._append_event_locked(job, "job.cancel_requested", {})
         await self.session.commit()
-        await self._publish_safely(event)
         return job
 
     async def claim(self, job_id: uuid.UUID, worker_id: str) -> Job | None:
@@ -149,9 +143,8 @@ class JobService:
                 assert_transition(job.status, "cancelled")
                 job.status = "cancelled"
                 job.finished_at = now
-                event = await self._append_event_locked(job, "job.cancelled", {})
+                await self._append_event_locked(job, "job.cancelled", {})
                 await self.session.commit()
-                await self._publish_safely(event)
             return None
         if job.status == "running" and job.lease_expires_at and job.lease_expires_at > now:
             await self.session.rollback()
@@ -173,11 +166,10 @@ class JobService:
         job.attempt_count += 1
         if job.started_at is None:
             job.started_at = now
-        event = await self._append_event_locked(
+        await self._append_event_locked(
             job, "job.started", {"attempt": job.attempt_count, "worker_id": worker_id}
         )
         await self.session.commit()
-        await self._publish_safely(event)
         return job
 
     async def heartbeat(self, job_id: uuid.UUID, worker_id: str) -> bool:
@@ -205,9 +197,8 @@ class JobService:
         job.result = result
         job.finished_at = utc_now()
         job.lease_expires_at = None
-        event = await self._append_event_locked(job, "job.completed", {})
+        await self._append_event_locked(job, "job.completed", {})
         await self.session.commit()
-        await self._publish_safely(event)
 
     async def fail(
         self,
@@ -229,15 +220,14 @@ class JobService:
             job.status = "queued"
             job.claimed_by = None
             job.lease_expires_at = None
-            event = await self._append_event_locked(
+            await self._append_event_locked(
                 job,
                 "job.retry_scheduled",
                 {"attempt": job.attempt_count, "max_attempts": job.max_attempts},
                 level="warning",
             )
+            await self._requeue(job)
             await self.session.commit()
-            await self.queue.enqueue(job.id)
-            await self._publish_safely(event)
             return True
         assert_transition(job.status, "failed")
         job.status = "failed"
@@ -245,11 +235,10 @@ class JobService:
         job.error_message = message[:2000]
         job.finished_at = now
         job.lease_expires_at = None
-        event = await self._append_event_locked(
+        await self._append_event_locked(
             job, "job.failed", {"code": job.error_code}, level="error"
         )
         await self.session.commit()
-        await self._publish_safely(event)
         return False
 
     async def wait_for_input(self, job_id: uuid.UUID, pause: dict[str, object]) -> None:
@@ -268,13 +257,12 @@ class JobService:
         }
         job.claimed_by = None
         job.lease_expires_at = None
-        event = await self._append_event_locked(
+        await self._append_event_locked(
             job,
             "job.waiting_for_input",
             {"question_message_id": pause.get("question_message_id")},
         )
         await self.session.commit()
-        await self._publish_safely(event)
 
     def pause_expired(self, job: Job) -> bool:
         pause = job.input.get("pause") if isinstance(job.input, dict) else None
@@ -289,12 +277,11 @@ class JobService:
         assert_transition(job.status, "queued")
         job.status = "queued"
         job.input = {**job.input, "resume": resume}
-        event = await self._append_event_locked(
+        await self._append_event_locked(
             job, "job.resumed", {"answer_message_id": resume.get("answer_message_id")}
         )
+        await self._requeue(job)
         await self.session.commit()
-        await self.queue.enqueue(job.id)
-        await self._publish_safely(event)
 
     async def expire_waiting(self, job: Job) -> None:
         """End a paused analysis whose questions went unanswered; the caller holds the lock."""
@@ -303,11 +290,10 @@ class JobService:
         job.error_code = "CLARIFICATION_EXPIRED"
         job.error_message = "The questions were not answered in time."
         job.finished_at = utc_now()
-        event = await self._append_event_locked(
+        await self._append_event_locked(
             job, "job.failed", {"code": job.error_code}, level="warning"
         )
         await self.session.commit()
-        await self._publish_safely(event)
 
     async def expire_waiting_jobs(self, *, limit: int = 100) -> list[uuid.UUID]:
         expired: list[uuid.UUID] = []
@@ -321,10 +307,11 @@ class JobService:
         return expired
 
     async def recover_abandoned_jobs(self, *, before, limit: int = 100) -> int:
-        """Requeue jobs whose worker lease expired. Duplicate Redis deliveries are harmless.
+        """Requeue jobs whose worker lease expired.
 
-        PostgreSQL remains authoritative; the claim transition prevents two workers from owning the
-        same live lease even when a stale stream entry and a recovery enqueue both exist.
+        A reserved job that no worker claimed becomes dispatchable again on its own once its
+        reservation lapses. This covers the other case: a worker that claimed a job and then
+        died without releasing it.
         """
         rows = await self.repo.list_stale_running(before, limit=limit)
         recovered = 0
@@ -341,12 +328,11 @@ class JobService:
             job.status = "queued"
             job.claimed_by = None
             job.lease_expires_at = None
-            event = await self._append_event_locked(
+            await self._append_event_locked(
                 job, "job.recovered", {"reason": "expired_worker_lease"}
             )
+            await self._requeue(job)
             await self.session.commit()
-            await self.queue.enqueue(job.id)
-            await self._publish_safely(event)
             recovered += 1
         return recovered
 
@@ -363,7 +349,6 @@ class JobService:
             raise AppError("JOB_NOT_FOUND", "Job not found.", 404)
         event = await self._append_event_locked(job, event_type, payload or {}, level=level)
         await self.session.commit()
-        await self._publish_safely(event)
         return event
 
     async def _finish_cancelled(self, job: Job) -> None:
@@ -372,9 +357,13 @@ class JobService:
             job.status = "cancelled"
             job.finished_at = utc_now()
             job.lease_expires_at = None
-            event = await self._append_event_locked(job, "job.cancelled", {})
+            await self._append_event_locked(job, "job.cancelled", {})
             await self.session.commit()
-            await self._publish_safely(event)
+
+    async def _requeue(self, job: Job) -> None:
+        """Make a queued job dispatchable now and wake a worker when this transaction commits."""
+        job.available_at = utc_now()
+        await notify_job_queued(self.session)
 
     async def _append_event_locked(
         self,
@@ -395,21 +384,7 @@ class JobService:
         )
         self.repo.add_event(event)
         await self.session.flush()
+        # Announced inside the transaction, so the notification and the row it points at become
+        # visible together. A rollback discards both.
+        await notify_job_event(self.session, job.id, sequence)
         return event
-
-    async def _publish_safely(self, event: JobEvent) -> None:
-        try:
-            await self.event_bus.publish(
-                LiveJobEvent(
-                    job_id=event.job_id,
-                    sequence=event.sequence,
-                    event_type=event.event_type,
-                    level=event.level,
-                    payload=event.payload,
-                    created_at=event.created_at,
-                )
-            )
-        except Exception:
-            # PostgreSQL is authoritative. A transient realtime publish failure must not roll back
-            # already committed job state; clients can recover via durable SSE replay.
-            logger.exception("job_event_realtime_publish_failed", extra={"job_id": str(event.job_id)})

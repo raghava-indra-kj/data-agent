@@ -7,7 +7,6 @@ import uuid
 
 from app.core.config import get_settings
 from app.core.database import get_session_factory
-from app.core.redis import get_redis
 from app.core.time import utc_now
 from app.data_sources.errors import DataSourceOperationError
 from app.data_sources.diagnostics import connection_error
@@ -27,20 +26,19 @@ async def _append_event(job_id: uuid.UUID, event_type: str, payload: dict[str, o
     settings = get_settings()
     session_factory = get_session_factory()
     async with session_factory() as session:
-        await JobService(session, get_redis(), settings).append_event(job_id, event_type, payload)
+        await JobService(session, settings).append_event(job_id, event_type, payload)
 
 
 async def _cancel_requested(job_id: uuid.UUID) -> bool:
     settings = get_settings()
     session_factory = get_session_factory()
     async with session_factory() as session:
-        return await JobService(session, get_redis(), settings).is_cancel_requested(job_id)
+        return await JobService(session, settings).is_cancel_requested(job_id)
 
 
 async def datasource_test_handler(job_id: uuid.UUID) -> dict[str, object]:
     settings = get_settings()
     session_factory = get_session_factory()
-    redis = get_redis()
 
     async with session_factory() as session:
         job = await JobRepository(session).get(job_id)
@@ -52,7 +50,7 @@ async def datasource_test_handler(job_id: uuid.UUID) -> dict[str, object]:
             raise JobFailureError(
                 "JOB_INPUT_INVALID", "The datasource test job input is invalid."
             ) from exc
-        service = DataSourceService(session, settings, redis=redis)
+        service = DataSourceService(session, settings)
         data_source = await service.require_for_org(data_source_id, job.organization_id)
         if data_source.status == "disabled":
             raise JobFailureError("DATASOURCE_DISABLED", "The datasource is disabled.")
@@ -81,7 +79,7 @@ async def datasource_test_handler(job_id: uuid.UUID) -> dict[str, object]:
         ) from error
 
     async with session_factory() as session:
-        service = DataSourceService(session, settings, redis=redis)
+        service = DataSourceService(session, settings)
         current = await service.require_for_org(data_source_id, data_source.organization_id)
         await service.mark_test_succeeded(current)
     await _append_event(
@@ -95,11 +93,10 @@ async def _mark_test_failure(
 ) -> None:
     settings = get_settings()
     session_factory = get_session_factory()
-    redis = get_redis()
     async with session_factory() as session:
         job = await JobRepository(session).get(job_id)
         if job is not None:
-            service = DataSourceService(session, settings, redis=redis)
+            service = DataSourceService(session, settings)
             data_source = await service.require_for_org(data_source_id, job.organization_id)
             diagnostics = {**(error.diagnostics or {
                 "category": "unknown", "stage": "connection test", "message": error.public_message,

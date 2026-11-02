@@ -5,7 +5,6 @@ import time
 from datetime import timedelta
 from pathlib import Path
 
-from redis.asyncio import Redis
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,9 +20,8 @@ logger = logging.getLogger(__name__)
 class MaintenanceService:
     """Explicit cleanup/recovery entry point suitable for cron/systemd/Kubernetes later."""
 
-    def __init__(self, session: AsyncSession, redis: Redis, settings: Settings) -> None:
+    def __init__(self, session: AsyncSession, settings: Settings) -> None:
         self.session = session
-        self.redis = redis
         self.settings = settings
 
     async def run_once(self) -> dict[str, int]:
@@ -51,12 +49,12 @@ class MaintenanceService:
 
     async def requeue_abandoned_jobs(self) -> int:
         before = utc_now() - timedelta(seconds=self.settings.stale_job_grace_seconds)
-        return await JobService(self.session, self.redis, self.settings).recover_abandoned_jobs(
+        return await JobService(self.session, self.settings).recover_abandoned_jobs(
             before=before, limit=100
         )
 
     async def expire_unanswered_questions(self) -> int:
-        expired = await JobService(self.session, self.redis, self.settings).expire_waiting_jobs()
+        expired = await JobService(self.session, self.settings).expire_waiting_jobs()
         await delete_job_checkpoints(self.session, expired)
         return len(expired)
 

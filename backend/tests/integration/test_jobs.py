@@ -8,9 +8,8 @@ from httpx import AsyncClient
 from app.auth.repository import AuthRepository
 from app.core.config import get_settings
 from app.core.database import get_session_factory
-from app.core.redis import get_redis
 from app.jobs.handlers import JobHandlerRegistry
-from app.jobs.queue import RedisJobQueue
+from app.jobs.queue import PgJobQueue
 from app.jobs.service import JobService
 from app.jobs.sse import stream_job_events
 from app.jobs.worker import Worker
@@ -40,10 +39,9 @@ async def test_job_access_cancel_and_event_replay(client: AsyncClient) -> None:
     first, user_id, org_id = await identity(client, "jobs@example.com")
     second, _, second_org_id = await identity(client, "other@example.com")
     settings = get_settings()
-    redis = get_redis()
 
     async with get_session_factory()() as session:
-        service = JobService(session, redis, settings)
+        service = JobService(session, settings)
         job = await service.create_job(
             organization_id=org_id,
             requested_by=user_id,
@@ -71,7 +69,6 @@ async def test_job_access_cancel_and_event_replay(client: AsyncClient) -> None:
         organization_id=org_id,
         after_sequence=1,
         session_factory=get_session_factory(),
-        redis=redis,
         settings=settings,
     )
     event = await anext(generator)
@@ -85,35 +82,28 @@ async def test_job_access_cancel_and_event_replay(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_redis_stream_acknowledgement(client: AsyncClient) -> None:
+async def test_reserved_job_is_hidden_from_other_workers(client: AsyncClient) -> None:
     _, user_id, org_id = await identity(client, "queue@example.com")
     settings = get_settings()
-    redis = get_redis()
-    queue = RedisJobQueue(redis, settings)
-    await queue.ensure_group()
+    queue = PgJobQueue(settings)
 
     async with get_session_factory()() as session:
-        job = await JobService(session, redis, settings).create_job(
+        job = await JobService(session, settings).create_job(
             organization_id=org_id,
             requested_by=user_id,
             job_type="queue_test",
         )
 
-    messages = await queue.read("integration-consumer", count=1)
-    assert len(messages) == 1
-    assert messages[0].job_id == job.id
-    await queue.ack(messages[0].message_id)
-    pending = await redis.xpending(settings.redis_job_stream, settings.redis_job_group)
-    assert int(pending["pending"]) == 0
+    assert job.id in await queue.reserve(10)
+    # Reserving pushes available_at forward, so a second worker cannot take the same job.
+    assert job.id not in await queue.reserve(10)
 
 
 @pytest.mark.asyncio
-async def test_retry_then_successful_worker_ack(client: AsyncClient) -> None:
+async def test_worker_runs_a_job_and_leaves_the_queue(client: AsyncClient) -> None:
     _, user_id, org_id = await identity(client, "worker@example.com")
     settings = get_settings()
-    redis = get_redis()
-    queue = RedisJobQueue(redis, settings)
-    await queue.ensure_group()
+    queue = PgJobQueue(settings)
 
     attempts = 0
 
@@ -126,31 +116,32 @@ async def test_retry_then_successful_worker_ack(client: AsyncClient) -> None:
     handlers.register("worker_test", handler)
 
     async with get_session_factory()() as session:
-        service = JobService(session, redis, settings)
+        service = JobService(session, settings)
         job = await service.create_job(
             organization_id=org_id,
             requested_by=user_id,
             job_type="worker_test",
         )
 
-    message = (await queue.read("worker-test-consumer", count=1))[0]
+    assert await queue.reserve(1) == [job.id]
     worker = Worker(settings, handlers)
     worker.worker_id = "worker-test-consumer"
-    await worker._process_message(message)
+    await worker._process_job(job.id)
 
     async with get_session_factory()() as session:
-        completed = await JobService(session, redis, settings).get_for_org(job.id, org_id)
+        completed = await JobService(session, settings).get_for_org(job.id, org_id)
         assert completed.status == "succeeded"
         assert completed.attempt_count == 1
+    # Finishing takes the job out of the queue: nothing acknowledges it separately.
+    assert job.id not in await queue.reserve(10)
 
 @pytest.mark.asyncio
 async def test_retryable_failure_is_bounded_and_requeued(client: AsyncClient) -> None:
     _, user_id, org_id = await identity(client, "retry@example.com")
     settings = get_settings()
-    redis = get_redis()
 
     async with get_session_factory()() as session:
-        service = JobService(session, redis, settings)
+        service = JobService(session, settings)
         job = await service.create_job(
             organization_id=org_id,
             requested_by=user_id,
@@ -161,7 +152,7 @@ async def test_retryable_failure_is_bounded_and_requeued(client: AsyncClient) ->
         assert claimed is not None
         requeued = await service.fail(
             job.id,
-            code="TEMPORARY_REDIS_FAILURE",
+            code="TEMPORARY_INFRASTRUCTURE_FAILURE",
             message="Temporary infrastructure failure.",
             retryable=True,
         )
@@ -170,7 +161,7 @@ async def test_retryable_failure_is_bounded_and_requeued(client: AsyncClient) ->
         assert again is not None
         requeued_again = await service.fail(
             job.id,
-            code="TEMPORARY_REDIS_FAILURE",
+            code="TEMPORARY_INFRASTRUCTURE_FAILURE",
             message="Temporary infrastructure failure.",
             retryable=True,
         )

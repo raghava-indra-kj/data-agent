@@ -14,7 +14,6 @@ from app.conversations.repository import ConversationRepository
 from app.core.config import Settings
 from app.core.time import utc_now
 from app.jobs.models import Job
-from app.jobs.queue import QueueMessage
 from app.jobs.repository import JobRepository
 from app.jobs.service import JobDeferredError, JobService
 from app.jobs.worker import Worker
@@ -55,6 +54,7 @@ def insert_job(session, metadata, *, conversation, created, status="queued"):
         status=status,
         input={},
         created_at=created,
+        available_at=created,
         attempt_count=0,
         max_attempts=3,
     )
@@ -147,7 +147,7 @@ async def test_waiting_turn_is_not_started_or_charged_an_attempt():
         started_at=None,
     )
     session = AsyncMock()
-    service = JobService(session, Mock(), Settings(_env_file=None))
+    service = JobService(session, Settings(_env_file=None))
     service.repo = SimpleNamespace(
         get=AsyncMock(return_value=job),
         lock=AsyncMock(return_value=job),
@@ -163,7 +163,7 @@ async def test_waiting_turn_is_not_started_or_charged_an_attempt():
     assert session.execute.call_args.args[0]._for_update_arg is not None
 
 
-async def test_worker_requeues_waiting_turn_before_acknowledging(monkeypatch):
+async def test_worker_defers_waiting_turn_instead_of_holding_a_slot(monkeypatch):
     from app.jobs import worker as module
 
     session = AsyncMock()
@@ -175,15 +175,19 @@ async def test_worker_requeues_waiting_turn_before_acknowledging(monkeypatch):
     monkeypatch.setattr(module, "get_session_factory", lambda: factory)
     service = Mock(claim=AsyncMock(side_effect=JobDeferredError))
     monkeypatch.setattr(module, "JobService", lambda *args: service)
-    monkeypatch.setattr(module.asyncio, "sleep", AsyncMock())
     worker = Worker.__new__(Worker)
-    worker.redis, worker.settings, worker.worker_id = Mock(), Settings(_env_file=None), "worker"
+    worker.settings, worker.worker_id = Settings(_env_file=None), "worker"
+    worker._wake, worker._wake_tasks = None, set()
     calls = []
     worker.queue = SimpleNamespace(
-        enqueue=AsyncMock(side_effect=lambda job_id: calls.append(("enqueue", job_id))),
-        ack=AsyncMock(side_effect=lambda message_id: calls.append(("ack", message_id))),
+        defer=AsyncMock(
+            side_effect=lambda job_id, *, delay_seconds: calls.append((job_id, delay_seconds))
+        )
     )
-    message = QueueMessage("1-0", uuid.uuid4())
-    await worker._process_message(message)
-    assert calls == [("enqueue", message.job_id), ("ack", message.message_id)]
+    job_id = uuid.uuid4()
+    await worker._process_job(job_id)
+    # The turn goes back to the queue with a short delay; the worker slot is freed at once.
+    assert calls == [(job_id, module.DEFER_SECONDS)]
     service.fail.assert_not_called()
+    for task in list(worker._wake_tasks):
+        task.cancel()

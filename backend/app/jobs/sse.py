@@ -5,12 +5,13 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
-from app.jobs.events import RedisJobEventBus
+from app.core.listener import get_listener
 from app.jobs.service import JobService
+
+KEEPALIVE_SECONDS = 15.0
 
 
 def _encode_sse(*, event_id: int, event_type: str, data: dict[str, object]) -> str:
@@ -27,55 +28,38 @@ async def stream_job_events(
     organization_id: uuid.UUID,
     after_sequence: int,
     session_factory: async_sessionmaker[AsyncSession],
-    redis: Redis,
     settings: Settings,
 ) -> AsyncIterator[str]:
-    pubsub = redis.pubsub()
-    await pubsub.subscribe(RedisJobEventBus.channel(job_id))
-    last_sent = after_sequence
-    try:
-        # Subscribe before durable replay. Events created during replay are either present in
-        # PostgreSQL or buffered in Pub/Sub. The DB session is closed before the long-lived
-        # realtime loop, so an SSE client does not consume a PostgreSQL connection indefinitely.
-        async with session_factory() as session:
-            service = JobService(session, redis, settings)
-            durable = await service.list_events(job_id, organization_id, after_sequence)
-        for event in durable:
-            last_sent = max(last_sent, event.sequence)
-            yield _encode_sse(
-                event_id=event.sequence,
-                event_type=event.event_type,
-                data={
-                    "sequence": event.sequence,
-                    "event_type": event.event_type,
-                    "level": event.level,
-                    "payload": event.payload,
-                    "created_at": event.created_at.isoformat(),
-                },
-            )
-
+    listener = get_listener()
+    await listener.start()
+    # Subscribe before the first read. Anything committed while that read runs either appears
+    # in it or arrives as a notification, so nothing can slip between the two.
+    async with listener.watch_job_events(job_id) as wake:
+        last_sent = after_sequence
         while True:
-            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=15.0)
-            if message is None:
+            # Notifications only say that something changed; PostgreSQL holds the content.
+            # Reading by sequence makes a missed notification cost a delay, not an event.
+            # The session is closed before the wait, so an idle SSE client holds no
+            # connection from the pool.
+            async with session_factory() as session:
+                events = await JobService(session, settings).list_events(
+                    job_id, organization_id, last_sent
+                )
+            for event in events:
+                last_sent = max(last_sent, event.sequence)
+                yield _encode_sse(
+                    event_id=event.sequence,
+                    event_type=event.event_type,
+                    data={
+                        "sequence": event.sequence,
+                        "event_type": event.event_type,
+                        "level": event.level,
+                        "payload": event.payload,
+                        "created_at": event.created_at.isoformat(),
+                    },
+                )
+
+            try:
+                await asyncio.wait_for(wake.get(), KEEPALIVE_SECONDS)
+            except TimeoutError:
                 yield ": keep-alive\n\n"
-                await asyncio.sleep(0)
-                continue
-            payload = json.loads(str(message["data"]))
-            sequence = int(payload["sequence"])
-            if sequence <= last_sent:
-                continue
-            last_sent = sequence
-            yield _encode_sse(
-                event_id=sequence,
-                event_type=str(payload["event_type"]),
-                data={
-                    "sequence": sequence,
-                    "event_type": payload["event_type"],
-                    "level": payload["level"],
-                    "payload": payload["payload"],
-                    "created_at": payload["created_at"],
-                },
-            )
-    finally:
-        await pubsub.unsubscribe(RedisJobEventBus.channel(job_id))
-        await pubsub.aclose()

@@ -1,112 +1,68 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
 
-from redis.asyncio import Redis
-from redis.exceptions import ResponseError
+from sqlalchemy import text
 
 from app.core.config import Settings
+from app.core.database import get_session_factory
+
+# Reserve and hide in one statement. SKIP LOCKED hands each row to exactly one worker, and
+# pushing available_at forward hides it for the reservation window, the same way a Redis
+# consumer group hid a delivered entry until its pending idle time elapsed.
+_RESERVE = text(
+    """
+    WITH ready AS (
+        SELECT id
+        FROM jobs
+        WHERE status = 'queued' AND available_at <= now()
+        ORDER BY created_at, id
+        FOR UPDATE SKIP LOCKED
+        LIMIT :count
+    )
+    UPDATE jobs
+    SET available_at = now() + make_interval(secs => :reservation)
+    FROM ready
+    WHERE jobs.id = ready.id
+    RETURNING jobs.id
+    """
+)
+
+_DEFER = text(
+    """
+    UPDATE jobs
+    SET available_at = now() + make_interval(secs => :delay)
+    WHERE id = :job_id AND status = 'queued'
+    """
+)
 
 
-@dataclass(frozen=True, slots=True)
-class QueueMessage:
-    message_id: str
-    job_id: uuid.UUID
+class PgJobQueue:
+    """Dispatch backed by the jobs table itself.
 
+    A job row is its own queue entry, so enqueueing is part of the transaction that creates or
+    requeues the job. There is no second system that can fall out of step with job state.
+    """
 
-class RedisJobQueue:
-    def __init__(self, redis: Redis, settings: Settings) -> None:
-        self.redis = redis
-        self.stream = settings.redis_job_stream
-        self.group = settings.redis_job_group
-        self.block_ms = settings.worker_block_ms
-        self.stale_idle_ms = settings.worker_stale_idle_ms
+    def __init__(self, settings: Settings) -> None:
+        # make_interval takes double precision, so keep these floats.
+        self.reservation_seconds = float(settings.worker_reservation_seconds)
 
-    async def ensure_group(self) -> None:
-        try:
-            await self.redis.xgroup_create(self.stream, self.group, id="0", mkstream=True)
-        except ResponseError as exc:
-            if "BUSYGROUP" not in str(exc):
-                raise
+    async def reserve(self, count: int) -> list[uuid.UUID]:
+        """Take up to `count` dispatchable jobs.
 
-    async def enqueue(self, job_id: uuid.UUID) -> str:
-        return str(await self.redis.xadd(self.stream, {"job_id": str(job_id)}))
-
-    async def read(self, consumer: str, count: int = 1) -> list[QueueMessage]:
-        response = await self.redis.xreadgroup(
-            groupname=self.group,
-            consumername=consumer,
-            streams={self.stream: ">"},
-            count=count,
-            block=self.block_ms,
-        )
-        return self._parse(response)
-
-    async def claim_stale(self, consumer: str, count: int = 10) -> list[QueueMessage]:
-        try:
-            response = await self.redis.xautoclaim(
-                self.stream,
-                self.group,
-                consumer,
-                min_idle_time=self.stale_idle_ms,
-                start_id="0-0",
-                count=count,
-            )
-            messages = response[1] if len(response) >= 2 else []
-            parsed: list[QueueMessage] = []
-            for message_id, fields in messages:
-                job_id = fields.get("job_id")
-                if job_id:
-                    parsed.append(QueueMessage(str(message_id), uuid.UUID(str(job_id))))
-            return parsed
-        except ResponseError as exc:
-            if "unknown command" in str(exc).lower() or "xautoclaim" in str(exc).lower():
-                # Backwards-compatibility fallback for Redis < 6.2 (e.g. Windows Redis 5.x)
-                pending = await self.redis.xpending_range(
-                    self.stream,
-                    self.group,
-                    min="-",
-                    max="+",
-                    count=count,
-                )
-                if not pending:
-                    return []
-                stale_ids = [
-                    entry["message_id"]
-                    for entry in pending
-                    if entry.get("idle", 0) >= self.stale_idle_ms
-                ]
-                if not stale_ids:
-                    return []
-                claimed = await self.redis.xclaim(
-                    self.stream,
-                    self.group,
-                    consumer,
-                    min_idle_time=self.stale_idle_ms,
-                    message_ids=stale_ids,
-                )
-                parsed: list[QueueMessage] = []
-                for message_id, fields in claimed:
-                    job_id = fields.get("job_id")
-                    if job_id:
-                        parsed.append(QueueMessage(str(message_id), uuid.UUID(str(job_id))))
-                return parsed
-            raise
-
-    async def ack(self, message_id: str) -> None:
-        await self.redis.xack(self.stream, self.group, message_id)
-        # Delete only after acknowledgement so the work stream does not grow forever.
-        await self.redis.xdel(self.stream, message_id)
-
-    @staticmethod
-    def _parse(response: object) -> list[QueueMessage]:
-        if not response:
+        This commits before the caller claims anything, so it holds no row locks while the
+        claim takes the conversation lock and then the job lock, in that order.
+        """
+        if count <= 0:
             return []
-        parsed: list[QueueMessage] = []
-        for _, messages in response:  # type: ignore[union-attr]
-            for message_id, fields in messages:
-                job_id = fields.get("job_id")
-                if job_id:
-                    parsed.append(QueueMessage(str(message_id), uuid.UUID(str(job_id))))
-        return parsed
+        async with get_session_factory()() as session, session.begin():
+            result = await session.execute(
+                _RESERVE, {"count": count, "reservation": self.reservation_seconds}
+            )
+            return list(result.scalars().all())
+
+    async def defer(self, job_id: uuid.UUID, *, delay_seconds: float) -> None:
+        """Hold a still-queued job back briefly without consuming an attempt."""
+        async with get_session_factory()() as session, session.begin():
+            await session.execute(_DEFER, {"job_id": job_id, "delay": float(delay_seconds)})

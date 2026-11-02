@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 
-from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,10 +27,9 @@ from app.reporting.schemas import (
 
 
 class ReportingService:
-    def __init__(self, session: AsyncSession, settings: Settings, *, redis: Redis | None = None) -> None:
+    def __init__(self, session: AsyncSession, settings: Settings) -> None:
         self.session = session
         self.settings = settings
-        self.redis = redis
         self.repo = ReportingRepository(session)
 
     async def create_dashboard(
@@ -250,8 +248,6 @@ class ReportingService:
         organization_id: uuid.UUID,
         requested_by: uuid.UUID,
     ) -> uuid.UUID:
-        if self.redis is None:
-            raise RuntimeError("Redis is required to refresh dashboards")
         dashboard = await self.require_dashboard(dashboard_id, organization_id)
         widgets = await self.repo.list_widgets(dashboard.id)
         if not any(widget.enabled for widget in widgets):
@@ -260,7 +256,7 @@ class ReportingService:
                 "The dashboard has no enabled widgets to refresh.",
                 409,
             )
-        job = await JobService(self.session, self.redis, self.settings).create_job(
+        job = await JobService(self.session, self.settings).create_job(
             organization_id=organization_id,
             requested_by=requested_by,
             job_type="dashboard_refresh",
@@ -284,14 +280,12 @@ class ReportingService:
         organization_id: uuid.UUID,
         requested_by: uuid.UUID,
     ) -> uuid.UUID:
-        if self.redis is None:
-            raise RuntimeError("Redis is required to refresh dashboard widgets")
         item = await self.repo.get_widget_for_org(widget_id, organization_id)
         if item is None:
             raise AppError("DASHBOARD_WIDGET_NOT_FOUND", "Dashboard widget not found.", 404)
         if not item.enabled:
             raise AppError("DASHBOARD_WIDGET_DISABLED", "Dashboard widget is disabled.", 409)
-        job = await JobService(self.session, self.redis, self.settings).create_job(
+        job = await JobService(self.session, self.settings).create_job(
             organization_id=organization_id,
             requested_by=requested_by,
             job_type="dashboard_refresh",

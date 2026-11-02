@@ -3,11 +3,23 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.time import utc_now
 
 
 class Job(Base):
@@ -22,6 +34,12 @@ class Job(Base):
         Index("ix_jobs_org_status_created", "organization_id", "status", "created_at"),
         Index("ix_jobs_status_lease", "status", "lease_expires_at"),
         Index("ix_jobs_conversation_created", "conversation_id", "created_at"),
+        Index(
+            "ix_jobs_dispatch",
+            "available_at",
+            "created_at",
+            postgresql_where=text("status = 'queued'"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -41,6 +59,11 @@ class Job(Base):
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Dispatch gate: a queued job is handed to a worker once this time has passed. Reserving
+    # pushes it forward, so an abandoned reservation becomes dispatchable again on its own.
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now, server_default=text("now()")
+    )
     claimed_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)

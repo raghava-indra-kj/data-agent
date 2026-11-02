@@ -4,14 +4,12 @@ import uuid
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
-from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_organization, get_current_user
 from app.auth.models import User
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
-from app.core.redis import get_redis
 from app.organizations.models import Organization, OrganizationMembership
 from app.reporting.schemas import (
     DashboardCreate,
@@ -107,11 +105,10 @@ async def refresh_dashboard(
     current_user: User = Depends(get_current_user),
     context: tuple[Organization, OrganizationMembership] = Depends(get_current_organization),
     session: AsyncSession = Depends(get_db_session),
-    redis: Redis = Depends(get_redis),
     settings: Settings = Depends(get_settings),
 ) -> DashboardRefreshResponse:
     organization, _ = context
-    job_id = await ReportingService(session, settings, redis=redis).enqueue_dashboard_refresh(
+    job_id = await ReportingService(session, settings).enqueue_dashboard_refresh(
         dashboard_id=dashboard_id,
         organization_id=organization.id,
         requested_by=current_user.id,
@@ -174,11 +171,10 @@ async def refresh_widget(
     current_user: User = Depends(get_current_user),
     context: tuple[Organization, OrganizationMembership] = Depends(get_current_organization),
     session: AsyncSession = Depends(get_db_session),
-    redis: Redis = Depends(get_redis),
     settings: Settings = Depends(get_settings),
 ) -> DashboardRefreshResponse:
     organization, _ = context
-    job_id = await ReportingService(session, settings, redis=redis).enqueue_refresh(
+    job_id = await ReportingService(session, settings).enqueue_refresh(
         widget_id=widget_id, organization_id=organization.id, requested_by=current_user.id
     )
     return DashboardRefreshResponse(job_id=job_id)

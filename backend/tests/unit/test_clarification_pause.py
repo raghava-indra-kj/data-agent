@@ -136,11 +136,10 @@ def job(status: str = "running", **input_data: object) -> Job:
 
 
 def job_service(locked: Job | None = None) -> JobService:
-    service = JobService(AsyncMock(), AsyncMock(), SETTINGS)
+    service = JobService(AsyncMock(), SETTINGS)
     service.repo = SimpleNamespace(lock=AsyncMock(return_value=locked))
-    service.queue = SimpleNamespace(enqueue=AsyncMock())
     service._append_event_locked = AsyncMock(return_value=SimpleNamespace())
-    service._publish_safely = AsyncMock()
+    service._requeue = AsyncMock()
     return service
 
 
@@ -174,7 +173,7 @@ async def test_answers_queue_the_job_again_and_unanswered_questions_expire():
     assert service.pause_expired(waiting) is False
     await service.resume_with_answers(waiting, {"answers": [], "text": "Division: BID"})
     assert waiting.status == "queued" and waiting.input["resume"]["text"] == "Division: BID"
-    service.queue.enqueue.assert_awaited_once_with(waiting.id)
+    service._requeue.assert_awaited_once_with(waiting)
 
     stale = job(WAITING_STATUS, pause={"asked_at": (utc_now() - timedelta(hours=25)).isoformat()})
     assert service.pause_expired(stale) is True
@@ -202,7 +201,7 @@ def clarification_message(job_id, *, resumable=True):
 
 
 def answering_service(asked, paused, monkeypatch):
-    service = ConversationService(AsyncMock(), SETTINGS, redis=AsyncMock())
+    service = ConversationService(AsyncMock(), SETTINGS)
     service.repo = SimpleNamespace(
         lock_for_org=AsyncMock(return_value=SimpleNamespace(id=asked.conversation_id)),
         get_message=AsyncMock(return_value=asked),
@@ -286,7 +285,7 @@ async def test_new_questions_wait_until_pending_questions_are_answered(monkeypat
             waiting_chat_for_conversation=AsyncMock(return_value=waiting)
         ),
     )
-    service = ConversationService(AsyncMock(), SETTINGS, redis=AsyncMock())
+    service = ConversationService(AsyncMock(), SETTINGS)
     with pytest.raises(AppError) as error:
         await service._ensure_no_pending_questions(waiting.conversation_id)
     assert (error.value.code, error.value.status_code) == ("CLARIFICATION_PENDING", 409)
@@ -374,7 +373,6 @@ async def test_the_worker_parks_paused_jobs_and_cleans_up_finished_ones(monkeypa
 
     monkeypatch.setattr(worker_module, "JobService", FakeJobService)
     monkeypatch.setattr(worker_module, "get_session_factory", lambda: session)
-    monkeypatch.setattr(worker_module, "get_redis", lambda: AsyncMock())
     monkeypatch.setattr(
         worker_module, "delete_job_checkpoints",
         AsyncMock(side_effect=lambda _session, ids: calls["cleanup"].extend(ids)),
@@ -388,10 +386,8 @@ async def test_the_worker_parks_paused_jobs_and_cleans_up_finished_ones(monkeypa
 
     for handler in (pausing_handler, finishing_handler):
         worker = Worker(SETTINGS, {"chat_query": handler})
-        worker.queue = SimpleNamespace(ack=AsyncMock())
         worker._heartbeat = AsyncMock()
-        await worker._process_message(SimpleNamespace(job_id=paused_job.id, message_id="1-0"))
-        worker.queue.ack.assert_awaited_once()
+        await worker._process_job(paused_job.id)
 
     assert calls["wait"] == [{"run": 1}]
     assert calls["complete"] == [{"ok": True}]

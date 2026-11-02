@@ -35,7 +35,6 @@ from app.auth.dependencies import get_current_organization
 from app.core.config import Settings, get_settings
 from app.core.database import get_db_session
 from app.core.errors import AppError
-from app.core.redis import get_redis
 from app.exports.excel import ExcelTableExport, build_excel, export_filename
 from app.exports.matrix import build_matrix_excel
 from app.jobs.service import JobService
@@ -60,7 +59,7 @@ async def export_matrix(
     settings: Settings = Depends(get_settings),
 ) -> Response:
     organization, _ = context
-    await JobService(session, get_redis(), settings).get_for_org(job_id, organization.id)
+    await JobService(session, settings).get_for_org(job_id, organization.id)
     artifact = await AgentExecutionRepository(session).get_artifact_for_job(job_id, artifact_id)
     if artifact is None or artifact.kind != "matrix":
         raise AppError("MATRIX_NOT_FOUND", "Matrix artifact not found.", 404)
@@ -149,7 +148,7 @@ async def get_job_execution_trace(
 ) -> JobExecutionTraceResponse:
     organization, _ = context
     # Authorization is against the durable job's organization before exposing any trace rows.
-    await JobService(session, get_redis(), settings).get_for_org(job_id, organization.id)
+    await JobService(session, settings).get_for_org(job_id, organization.id)
     repo = AgentExecutionRepository(session)
     return JobExecutionTraceResponse(
         tools=[
@@ -191,7 +190,7 @@ async def load_stored_table(
     artifact_id: uuid.UUID,
 ) -> StoredTable:
     # Access is checked on every request; only the immutable rows come from the cache.
-    await JobService(session, get_redis(), settings).get_for_org(job_id, organization_id)
+    await JobService(session, settings).get_for_org(job_id, organization_id)
     repo = AgentExecutionRepository(session)
     if await repo.artifact_kind_for_job(job_id, artifact_id) != "table":
         raise AppError("TABLE_ARTIFACT_NOT_FOUND", "Table artifact not found.", 404)

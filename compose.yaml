@@ -12,7 +12,6 @@ x-backend-service: &backend-service
   environment: &backend-environment
     APP_ENV: "${APP_ENV:-development}"
     DATABASE_URL: "${CONTAINER_DATABASE_URL:-postgresql+asyncpg://dbassistant:dbassistant@postgres:5432/dbassistant}"
-    REDIS_URL: "redis://redis:6379/0"
     DATA_DIRECTORY: "/app/runtime-data"
     CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:12200","http://127.0.0.1:12200"]}'
     PASSWORD_RESET_URL_BASE: "${PASSWORD_RESET_URL_BASE:-http://localhost:12200/reset-password}"
@@ -37,18 +36,6 @@ services:
       retries: 20
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    restart: unless-stopped
-
   migrate:
     <<: *backend-service
     command: ["alembic", "upgrade", "head"]
@@ -65,8 +52,6 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
     healthcheck:
       test:
         - CMD
@@ -85,8 +70,6 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -107,5 +90,4 @@ services:
 
 volumes:
   postgres-data:
-  redis-data:
   application-data:

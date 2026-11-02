@@ -146,7 +146,6 @@ def route_mocks(monkeypatch, artifact, *, forbidden=False):
     monkeypatch.setattr(router, "STORED_TABLES", StoredTableCache())
     monkeypatch.setattr(router, "AgentExecutionRepository", lambda _: repo)
     monkeypatch.setattr(router, "JobService", lambda *_: SimpleNamespace(get_for_org=authorized))
-    monkeypatch.setattr(router, "get_redis", lambda: None)
     return authorized, repo
 
 

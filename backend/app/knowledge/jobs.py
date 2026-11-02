@@ -6,7 +6,6 @@ import uuid
 
 from app.core.config import get_settings
 from app.core.database import get_session_factory
-from app.core.redis import get_redis
 from app.core.time import utc_now
 from app.data_sources.errors import DataSourceOperationError
 from app.data_sources.service import DataSourceService
@@ -24,13 +23,13 @@ logger = logging.getLogger(__name__)
 async def _event(job_id: uuid.UUID, event_type: str, payload: dict[str, object] | None = None) -> None:
     settings = get_settings()
     async with get_session_factory()() as session:
-        await JobService(session, get_redis(), settings).append_event(job_id, event_type, payload or {})
+        await JobService(session, settings).append_event(job_id, event_type, payload or {})
 
 
 async def _cancel_requested(job_id: uuid.UUID) -> bool:
     settings = get_settings()
     async with get_session_factory()() as session:
-        return await JobService(session, get_redis(), settings).is_cancel_requested(job_id)
+        return await JobService(session, settings).is_cancel_requested(job_id)
 
 
 async def _mark_cancelled(base_id: uuid.UUID) -> None:

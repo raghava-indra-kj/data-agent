@@ -91,6 +91,13 @@ class JobRepository:
         )
         return int(value or 0)
 
+    async def count_queued(self) -> int:
+        """Jobs waiting for a worker across every organization."""
+        value = await self.session.scalar(
+            select(func.count(Job.id)).where(Job.status == "queued")
+        )
+        return int(value or 0)
+
     async def status_counts_for_organization(self, organization_id: uuid.UUID) -> dict[str, int]:
         result = await self.session.execute(
             select(Job.status, func.count(Job.id))
