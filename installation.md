@@ -23,15 +23,20 @@ version has moved on.
 
 ### Version requirements
 
-| Software | Minimum the project enforces | Where that comes from |
-| --- | --- | --- |
-| Python | `>=3.12` | `backend/pyproject.toml` |
-| Node.js | `>=22.22.2` | `frontend/package.json` |
-| PostgreSQL | 14+ | migrations use `SKIP LOCKED` and `LISTEN`/`NOTIFY` |
-| ODBC Driver | 18 | default in the MSSQL datasource config |
+| Software | Minimum the project enforces | Tested range | Where that comes from |
+| --- | --- | --- | --- |
+| Python | `>=3.12` | **3.12 – 3.13 only** | `backend/pyproject.toml` |
+| Node.js | `>=22.22.2` | 22 – 26 | `frontend/package.json` |
+| PostgreSQL | 14+ | 16 – 18 | migrations use `SKIP LOCKED` and `LISTEN`/`NOTIFY` |
+| ODBC Driver | 18 | 18.6 – 18.7 | default in the MSSQL datasource config |
 
 Newer patch releases are fine. The pinned versions are what this guide was verified
 against, and pinning them keeps every developer machine identical.
+
+> **Python has an upper bound the project does not state.** `pyproject.toml` only sets a
+> floor, but several dependencies have no Windows wheel for Python 3.14 or 3.15 yet. On
+> those versions the install fails part-way through, demanding Visual C++ Build Tools.
+> Install 3.13, not the newest release.
 
 **Not x64?** Use [x86](https://go.microsoft.com/fwlink/?linkid=2378646) or
 [ARM64](https://go.microsoft.com/fwlink/?linkid=2378647) for the ODBC driver, and pick the
@@ -100,6 +105,15 @@ Expected: `Python 3.12.x` or `Python 3.13.x`.
 
 If you see `Python was not found` or a Microsoft Store page opens, Python is not properly
 installed. Continue to Install.
+
+> **Do not install a newer Python than 3.13.** `>=3.12` is a floor, not an invitation to
+> take the latest release. Package maintainers publish Windows wheels months after a new
+> Python version ships, so on 3.14 or 3.15 pip finds no wheel for some dependencies,
+> falls back to compiling from source, and fails asking for Visual C++ Build Tools.
+> On 3.13 every dependency installs from a prebuilt wheel and no compiler is needed.
+
+If `python --version` already reports 3.14 or newer, install 3.13 alongside it — they
+coexist — and build the virtual environment with `py -3.13 -m venv .venv` in step 6.
 
 > **Note on Microsoft Store Python.** The Store version works, but installs to a sandboxed
 > path and can behave oddly with virtual environments and PATH. For a shared machine,
@@ -310,9 +324,20 @@ Expected first line: `## stable...origin/stable`.
 
 ### Create the virtual environment and install dependencies
 
+`py -3.13` builds the environment on Python 3.13 even when a newer Python is also
+installed and owns the bare `python` command:
+
 ```powershell
-Set-Location C:\LiveProjects\data-agent\backend; python -m venv .venv
+Set-Location C:\LiveProjects\data-agent\backend; py -3.13 -m venv .venv
 ```
+
+Confirm the environment is on the right version before installing into it:
+
+```powershell
+.\.venv\Scripts\python.exe --version
+```
+
+Expected: `Python 3.13.x`. Anything higher and the install below will fail.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
@@ -323,8 +348,11 @@ Set-Location C:\LiveProjects\data-agent\backend; python -m venv .venv
 ```
 
 This takes a few minutes. It installs FastAPI, SQLAlchemy, the SQL Server drivers
-(`pyodbc`, `aioodbc`), MySQL, DuckDB, Excel support and the agent stack. No compiler is
-needed — every package ships a prebuilt wheel for Windows.
+(`pyodbc`, `aioodbc`), MySQL, DuckDB, Excel support and the agent stack.
+
+On Python 3.13 every package installs from a prebuilt wheel, so no compiler and no Visual
+C++ Build Tools are needed. That holds because of the version, not the package list — on a
+newer Python some dependencies have no wheel and pip tries to compile them.
 
 ### Verify
 
@@ -514,6 +542,7 @@ recommended — the application never writes to your data sources.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `Python was not found` | Not on PATH, or a Store alias | Reinstall with "Add python.exe to PATH" ticked, then open a new window |
+| `Microsoft Visual C++ 14.0 or greater is required` during `pip install -e .` | The virtual environment is on Python 3.14 or newer, where some dependencies have no Windows wheel and pip tries to compile them. Check the wheel names in the log: `cp313` is correct, `cp314` or `cp315` is the problem | Delete `.venv`, recreate it with `py -3.13 -m venv .venv`, and install again. Do **not** install Build Tools |
 | `node` or `npm.cmd` not recognised | PATH not refreshed | Open a new PowerShell window |
 | `npm : cannot be loaded ... execution policy` | PowerShell script policy | Use `npm.cmd` instead of `npm` |
 | ODBC driver installer fails immediately | Visual C++ Redistributable missing (only affects 18.6 and earlier) | Complete step 1, or install 18.7.1.1 which does not need it |
