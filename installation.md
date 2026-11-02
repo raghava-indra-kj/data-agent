@@ -289,18 +289,29 @@ step 12's **Test connection** is the real check that the driver can reach your s
 
 ### Get the code
 
-```powershell
-git clone https://github.com/raghavendra-jayaramu-thermofisher/data-agent-poc.git C:\Projects\data-agent
-```
+Pick a folder for the project. It must **not already exist** — `git clone` refuses to write
+into a non-empty directory. Every command from here on uses it, so if you choose something
+other than `C:\LiveProjects\data-agent`, substitute it consistently.
+
+`-b stable` clones and checks out the branch in one step. Without it you land on `main`,
+which still documents the older Redis-based setup.
 
 ```powershell
-Set-Location C:\Projects\data-agent; git checkout stable
+git clone -b stable https://github.com/raghavendra-jayaramu-thermofisher/data-agent-poc.git C:\LiveProjects\data-agent
 ```
+
+Confirm you are on the right branch before continuing:
+
+```powershell
+Set-Location C:\LiveProjects\data-agent; git status -sb
+```
+
+Expected first line: `## stable...origin/stable`.
 
 ### Create the virtual environment and install dependencies
 
 ```powershell
-Set-Location C:\Projects\data-agent\backend; python -m venv .venv
+Set-Location C:\LiveProjects\data-agent\backend; python -m venv .venv
 ```
 
 ```powershell
@@ -381,7 +392,7 @@ refuses to start.
 ## 10. Step 8 — Run the database migrations
 
 ```powershell
-Set-Location C:\Projects\data-agent\backend; .\.venv\Scripts\python.exe -m alembic upgrade head
+Set-Location C:\LiveProjects\data-agent\backend; .\.venv\Scripts\python.exe -m alembic upgrade head
 ```
 
 This creates all tables from an empty database.
@@ -399,7 +410,7 @@ Expected: the latest revision, ending in `(head)`.
 ## 11. Step 9 — Install the frontend
 
 ```powershell
-Set-Location C:\Projects\data-agent\frontend; npm.cmd install
+Set-Location C:\LiveProjects\data-agent\frontend; npm.cmd install
 ```
 
 Create `frontend\.env.local` containing:
@@ -421,13 +432,13 @@ Three PowerShell windows, each left open.
 **Window 1 — API** (port 12201):
 
 ```powershell
-Set-Location C:\Projects\data-agent\backend; .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 12201 --timeout-graceful-shutdown 3
+Set-Location C:\LiveProjects\data-agent\backend; .\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 12201 --timeout-graceful-shutdown 3
 ```
 
 **Window 2 — Worker** (background jobs and analyses):
 
 ```powershell
-Set-Location C:\Projects\data-agent\backend; .\.venv\Scripts\python.exe -m app.worker
+Set-Location C:\LiveProjects\data-agent\backend; .\.venv\Scripts\python.exe -m app.worker
 ```
 
 Wait for `worker_started`.
@@ -435,7 +446,7 @@ Wait for `worker_started`.
 **Window 3 — Frontend** (port 12200):
 
 ```powershell
-Set-Location C:\Projects\data-agent\frontend; npm.cmd run dev
+Set-Location C:\LiveProjects\data-agent\frontend; npm.cmd run dev
 ```
 
 ---
