@@ -325,48 +325,56 @@ needed — every package ships a prebuilt wheel for Windows.
 
 ## 9. Step 7 — Configure the backend
 
-### Create the environment file
+One command. Nothing to edit.
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-### Generate the secrets
+`.env.example` ships working development values for everything, including the database URL
+built from the names in step 4. If you used `data_agent` / `data_agent_admin` / `root`,
+this file is already correct and you can go straight to step 8.
 
-Run each command and copy its output into `.env`.
+`.env` is excluded from Git, so each machine keeps its own copy and nothing secret is ever
+committed.
 
-A JWT signing secret (must be at least 32 characters):
+### What the shipped defaults are
+
+| Setting | Shipped value | What it does |
+| --- | --- | --- |
+| `JWT_SECRET` | a fixed development string | Signs sign-in tokens |
+| `SECRET_ENCRYPTION_KEYS` | `{"v1":"IKDwa…"}` | Encrypts saved datasource passwords |
+| `SECRET_ENCRYPTION_CURRENT_VERSION` | `v1` | Names the key above to encrypt with |
+
+These are deliberately shared so a new machine works immediately. The application refuses
+to start with them when `APP_ENV=production`, so they cannot reach a real deployment by
+accident.
+
+> **One thing to know before connecting a production SQL Server.** The shipped encryption
+> key is in this repository, so any datasource password saved on a default install can be
+> decrypted by anyone who has both the repo and that database. For test and read-only
+> logins that is fine. If you save credentials for a real server, generate your own key
+> first — see below.
+
+### Generating your own secrets
+
+Only needed for a shared host, or before saving credentials you care about.
 
 ```powershell
 .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-A credential encryption key (must decode to exactly 32 bytes):
-
 ```powershell
 .\.venv\Scripts\python.exe -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
 ```
 
-### Edit `backend\.env`
+Put the first in `JWT_SECRET` and the second in `SECRET_ENCRYPTION_KEYS` as
+`{"v1":"<key>"}`. The key must decode to exactly 32 bytes, and
+`SECRET_ENCRYPTION_CURRENT_VERSION` must name a key present in the map, or the application
+refuses to start.
 
-Set these five values:
-
-```dotenv
-DATABASE_URL=postgresql+asyncpg://data_agent_admin:root@127.0.0.1:5432/data_agent
-JWT_SECRET=<output of the first command>
-SECRET_ENCRYPTION_CURRENT_VERSION=v1
-SECRET_ENCRYPTION_KEYS={"v1":"<output of the second command>"}
-DATA_DIRECTORY=./runtime-data
-```
-
-Note the exact shape of `SECRET_ENCRYPTION_KEYS`: a JSON object mapping a version name to
-a base64 key. `SECRET_ENCRYPTION_CURRENT_VERSION` must name a key that exists in it, or
-the application refuses to start.
-
-> **Do not change `SECRET_ENCRYPTION_KEYS` once datasources have been saved.** It encrypts
-> stored database credentials. Changing it makes every saved credential unreadable.
-
-`.env` is excluded from Git. Each machine needs its own.
+> **Do not change `SECRET_ENCRYPTION_KEYS` once datasources have been saved.** Changing it
+> makes every stored credential unreadable.
 
 ---
 
