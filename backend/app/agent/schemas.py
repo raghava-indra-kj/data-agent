@@ -69,6 +69,26 @@ class ModelExecutionResponse(BaseModel):
     finished_at: datetime | None
 
 
+class DaxExecutionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    tool_execution_id: uuid.UUID
+    data_source_id: uuid.UUID
+    semantic_model_id: str
+    dax_text: str
+    status: str
+    columns: list[str] | None
+    row_count: int | None
+    truncated: bool
+    result_bytes: int | None
+    duration_ms: int | None
+    error_code: str | None
+    error_message: str | None
+    context: dict[str, object]
+    started_at: datetime
+    finished_at: datetime | None
+
+
 class JobArtifactResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -77,6 +97,7 @@ class JobArtifactResponse(BaseModel):
     kind: str
     name: str | None
     source_sql_execution_id: uuid.UUID | None
+    source_dax_execution_id: uuid.UUID | None = None
     payload: dict[str, object]
     created_at: datetime
     # Tables only: the trace carries the first rows; the rest are paged from the rows endpoint.
@@ -86,5 +107,6 @@ class JobArtifactResponse(BaseModel):
 class JobExecutionTraceResponse(BaseModel):
     tools: list[ToolExecutionResponse] = Field(default_factory=list)
     sql: list[SQLExecutionResponse] = Field(default_factory=list)
+    dax: list[DaxExecutionResponse] = Field(default_factory=list)
     models: list[ModelExecutionResponse] = Field(default_factory=list)
     artifacts: list[JobArtifactResponse] = Field(default_factory=list)

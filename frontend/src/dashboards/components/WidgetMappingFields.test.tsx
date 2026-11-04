@@ -91,8 +91,8 @@ it('assigns combo column and line roles, axes, units and axis titles', async () 
   await user.selectOptions(screen.getByLabelText('Series 2 axis'), 'secondary');
   await user.type(screen.getByLabelText('Series 1 unit'), 'count');
   await user.type(screen.getByLabelText('Series 2 unit'), '%');
-  await user.type(screen.getByLabelText('Primary Y-axis title'), 'Orders');
-  await user.type(screen.getByLabelText('Secondary Y-axis title'), 'Rate');
+  await user.type(screen.getByLabelText('Primary y-axis title'), 'Orders');
+  await user.type(screen.getByLabelText('Secondary y-axis title'), 'Rate');
   await user.selectOptions(screen.getByLabelText('Series layout'), 'stacked');
   const mapping = JSON.parse(screen.getByTestId('mapping').textContent!);
   expect(mapping).toMatchObject({

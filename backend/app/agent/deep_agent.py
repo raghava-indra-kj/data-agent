@@ -652,8 +652,12 @@ class DeepAgentRuntime:
         resume: dict[str, object] | None = None,
     ) -> AnalysisRunResult:
         """Run the analysis, or with `resume` continue a paused thread with the user's answers."""
-        executor = self.tool_executor_factory(context, self.registry)
-        bindings = [self._binding(definition, executor) for definition in self.registry.all()]
+        registry = self.registry
+        if context.power_bi_source_ids:
+            from app.power_bi.tools import with_power_bi_tools
+            registry = with_power_bi_tools(registry, context)
+        executor = self.tool_executor_factory(context, registry)
+        bindings = [self._binding(definition, executor) for definition in registry.all()]
         authorized = "\n".join(
             f"- {source_id}" for source_id in sorted(context.allowed_data_source_ids, key=str)
         )
@@ -691,6 +695,9 @@ class DeepAgentRuntime:
                 else ""
             )
         )
+        if context.power_bi_source_ids:
+            from app.power_bi.tools import power_bi_prompt
+            runtime_prompt += power_bi_prompt(context)
         runnable = self.factory.create(
             model=model,
             tools=bindings,

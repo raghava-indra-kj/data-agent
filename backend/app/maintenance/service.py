@@ -13,6 +13,8 @@ from app.auth.models import AuthActionToken, AuthSession
 from app.core.config import Settings
 from app.core.time import utc_now
 from app.jobs.service import JobService
+from app.power_bi.models import MicrosoftAuthTransaction
+from app.secrets.models import EncryptedSecret
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +46,18 @@ class MaintenanceService:
         tokens = await self.session.execute(
             delete(AuthActionToken).where(AuthActionToken.expires_at < cutoff)
         )
+        expired_power_bi = list(await self.session.scalars(
+            delete(MicrosoftAuthTransaction)
+            .where(MicrosoftAuthTransaction.expires_at < utc_now())
+            .returning(MicrosoftAuthTransaction.secret_id)
+        ))
+        if expired_power_bi:
+            await self.session.execute(delete(EncryptedSecret).where(
+                EncryptedSecret.id.in_(expired_power_bi),
+                EncryptedSecret.purpose == "power_bi_oauth_transaction",
+            ))
         await self.session.commit()
-        return int(sessions.rowcount or 0) + int(tokens.rowcount or 0)  # type: ignore[attr-defined]
+        return int(sessions.rowcount or 0) + int(tokens.rowcount or 0) + len(expired_power_bi)  # type: ignore[attr-defined]
 
     async def requeue_abandoned_jobs(self) -> int:
         before = utc_now() - timedelta(seconds=self.settings.stale_job_grace_seconds)

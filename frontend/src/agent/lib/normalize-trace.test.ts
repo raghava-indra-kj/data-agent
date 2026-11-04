@@ -19,6 +19,6 @@ describe('normalizeTrace', () => {
 
   it('keeps unknown future tool names as generic tool records', () => {
     const unknown = normalizeTrace(base).find((item) => item.kind === 'tool' && item.record.id === 't2');
-    expect(unknown?.record.tool_name).toBe('future_tool');
+    expect(unknown?.kind === 'tool' && unknown.record.tool_name).toBe('future_tool');
   });
 });

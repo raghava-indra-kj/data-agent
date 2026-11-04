@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -39,7 +40,7 @@ async def test_html_artifact_route_serves_public_preview_with_browser_limits(
     response = await router_module.get_html_artifact(
         job_id,
         artifact_id,
-        session=object(),  # type: ignore[arg-type]
+        session=SimpleNamespace(get=AsyncMock(return_value=None)),
         settings=Settings(app_env="test", data_directory=tmp_path),
     )
 
@@ -60,7 +61,7 @@ async def test_html_artifact_route_returns_not_found_for_other_artifact_kinds(
         await router_module.get_html_artifact(
             uuid.uuid4(),
             uuid.uuid4(),
-            session=object(),  # type: ignore[arg-type]
+            session=SimpleNamespace(get=AsyncMock(return_value=None)),
             settings=Settings(app_env="test", data_directory=tmp_path),
         )
     assert error.value.status_code == 404

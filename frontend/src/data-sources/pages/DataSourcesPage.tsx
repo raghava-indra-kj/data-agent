@@ -87,11 +87,11 @@ export function DataSourcesPage() {
               disabled={test.isPending}
               actions={[
                 { id: 'view', label: 'View data source', icon: <Eye size={15} /> },
-                { id: 'knowledge', label: 'View knowledge', icon: <BookOpen size={15} /> },
+                ...(source.kind !== 'powerbi' ? [{ id: 'knowledge', label: 'View knowledge', icon: <BookOpen size={15} /> }] : []),
                 ...(canManage
                   ? [
-                      { id: 'edit', label: 'Edit data source', icon: <Pencil size={15} /> },
-                      { id: 'test', label: 'Test connection', icon: <RefreshCw size={15} /> },
+                      ...(source.kind !== 'powerbi' ? [{ id: 'edit', label: 'Edit data source', icon: <Pencil size={15} /> },
+                      { id: 'test', label: 'Test connection', icon: <RefreshCw size={15} /> }] : []),
                       {
                         id: 'delete',
                         label: 'Delete data source',

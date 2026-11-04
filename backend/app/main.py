@@ -37,6 +37,8 @@ from app.organizations.router import router as organizations_router
 from app.operations.router import router as operations_router
 from app.reporting import models as reporting_models  # noqa: F401
 from app.reporting.router import router as reporting_router
+from app.power_bi import models as power_bi_models  # noqa: F401
+from app.power_bi.router import router as power_bi_router
 
 
 def create_app() -> FastAPI:
@@ -64,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(organizations_router, prefix=settings.api_v1_prefix)
+    app.include_router(power_bi_router, prefix=settings.api_v1_prefix)
     app.include_router(data_sources_router, prefix=settings.api_v1_prefix)
     app.include_router(instructions_router, prefix=settings.api_v1_prefix)
     app.include_router(models_router, prefix=settings.api_v1_prefix)

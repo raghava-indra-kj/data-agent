@@ -142,7 +142,7 @@ describe('AppShell', () => {
 
     const confirmBtns = screen.getAllByRole('button', { name: 'Delete all chats' });
     const modalConfirmBtn = confirmBtns[confirmBtns.length - 1];
-    await user.click(modalConfirmBtn);
+    await user.click(modalConfirmBtn!);
     expect(mockConversations.deleteAll).toHaveBeenCalled();
   });
 });

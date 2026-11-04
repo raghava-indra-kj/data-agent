@@ -62,7 +62,7 @@ export function MessageAnalysisDetails({
             jobId={jobId}
             markdown={answerMarkdown}
             artifacts={trace.data?.artifacts ?? []}
-            sql={trace.data?.sql ?? []}
+            sql={[...(trace.data?.sql ?? []), ...(trace.data?.dax ?? [])]}
             dataSourceNames={sourceNames}
             traceLoading={trace.isLoading}
             traceUnavailable={trace.isError}
@@ -79,7 +79,7 @@ export function MessageAnalysisDetails({
             <ArtifactRenderer
               jobId={jobId}
               artifacts={trace.data.artifacts ?? []}
-              sql={trace.data.sql ?? []}
+              sql={[...(trace.data.sql ?? []), ...(trace.data.dax ?? [])]}
               dataSourceNames={sourceNames}
               excludeTextMarkdown={answerMarkdown}
               onFollowUp={onFollowUp}

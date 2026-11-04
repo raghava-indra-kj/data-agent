@@ -10,12 +10,15 @@ import { useOrganization } from '../../organizations/OrganizationProvider';
 import * as api from '../api/data-source-api';
 import { ExcelUploadForm } from '../components/ExcelUploadForm';
 import { RelationalDataSourceForm } from '../components/RelationalDataSourceForm';
+import { PowerBIForm } from '../../power-bi/PowerBIForm';
+import { usePowerBIFeatures } from '../../power-bi/ConnectionPanel';
 
 export function NewDataSourcePage() {
   const navigate = useNavigate();
   const client = useQueryClient();
   const { activeOrganization } = useOrganization();
   const jobs = useJobManager();
+  const powerBI = usePowerBIFeatures();
   const [mode, setMode] = useState('database');
   const orgId = activeOrganization?.id ?? null;
   if (activeOrganization?.role !== 'owner' && activeOrganization?.role !== 'admin')
@@ -49,6 +52,7 @@ export function NewDataSourcePage() {
                 Excel workbook
                 <Tabs.Indicator />
               </Tabs.Tab>
+              {powerBI.data?.enabled && <Tabs.Tab id="powerbi">Power BI<Tabs.Indicator /></Tabs.Tab>}
             </Tabs.List>
           </Tabs.ListContainer>
           <Tabs.Panel id="database">
@@ -70,6 +74,10 @@ export function NewDataSourcePage() {
               }}
             />
           </Tabs.Panel>
+          {powerBI.data?.enabled && <Tabs.Panel id="powerbi"><PowerBIForm onCreated={async (source) => {
+            await client.invalidateQueries({ queryKey: queryKeys.dataSources.all(orgId) });
+            void navigate('/data-sources/' + source.id);
+          }} /></Tabs.Panel>}
         </Tabs>
       </section>
     </section>

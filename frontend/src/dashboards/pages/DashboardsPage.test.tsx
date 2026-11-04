@@ -37,7 +37,7 @@ describe('DashboardsPage', () => {
 
   it('creates a simple dashboard without an oversized modal workflow', async () => {
     renderPage();
-    await userEvent.setup().click(await screen.findByRole('button', { name: 'New dashboard' }));
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Create your first dashboard' }));
     await userEvent.setup().type(screen.getByLabelText('Title'), 'Operations');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Create dashboard' }));
     expect(await screen.findByRole('link', { name: 'Operations' })).toHaveAttribute('href', '/dashboards/d1');

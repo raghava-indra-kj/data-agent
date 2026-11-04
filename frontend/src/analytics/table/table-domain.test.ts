@@ -3,9 +3,11 @@ import { formatAnalyticalValue, formatColumnHeader, isNumericColumn } from './ta
 
 describe('formatAnalyticalValue', () => {
   it('groups digits of numbers and of decimal text from the database', () => {
-    expect(formatAnalyticalValue(17080)).toBe('17,080');
-    expect(formatAnalyticalValue('17552267.65356')).toBe('17,552,267.65356');
-    expect(formatAnalyticalValue('-1029962.20000')).toBe('-1,029,962.2');
+    // Match the user's locale (for example en-IN and en-US have different grouping).
+    const format = new Intl.NumberFormat(undefined, { maximumFractionDigits: 20 });
+    expect(formatAnalyticalValue(17080)).toBe(format.format(17080));
+    expect(formatAnalyticalValue('17552267.65356')).toBe(format.format(17552267.65356));
+    expect(formatAnalyticalValue('-1029962.20000')).toBe(format.format(-1029962.2));
   });
 
   it('leaves identifiers and other text untouched', () => {

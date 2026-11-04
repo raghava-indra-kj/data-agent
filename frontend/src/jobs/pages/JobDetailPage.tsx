@@ -173,7 +173,7 @@ export function JobDetailPage() {
           <ArtifactRenderer
             jobId={job.id}
             artifacts={trace.data.artifacts}
-            sql={trace.data.sql ?? []}
+            sql={[...(trace.data.sql ?? []), ...(trace.data.dax ?? [])]}
             dataSourceNames={sourceNames}
           />
         </section>

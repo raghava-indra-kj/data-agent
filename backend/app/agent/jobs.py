@@ -147,6 +147,31 @@ async def run_chat_query_job(job_id: uuid.UUID) -> dict[str, object]:
         if conversation is None:
             raise JobFailureError("CONVERSATION_NOT_FOUND", "Conversation not found.")
         source_ids = await convo_repo.source_ids(conversation.id)
+        power_bi_source_ids: set[uuid.UUID] = set()
+        if settings.power_bi_enabled or getattr(conversation, "private_to_creator", False):
+            from sqlalchemy import select
+            from app.data_sources.models import DataSource
+            from app.power_bi.service import PowerBIService
+            session.info["actor_user_id"] = job.requested_by
+            if conversation.private_to_creator and conversation.created_by != job.requested_by:
+                raise JobFailureError("CONVERSATION_NOT_FOUND", "Conversation not found.")
+            if conversation.private_to_creator:
+                try:
+                    await PowerBIService(session, settings, job.organization_id, job.requested_by).require_identity(job.input.get("power_bi_identity"))
+                except AppError as exc:
+                    raise JobFailureError(exc.code, exc.message) from exc
+            power_bi_source_ids = set(await session.scalars(select(DataSource.id).where(
+                DataSource.id.in_(source_ids), DataSource.kind == "powerbi",
+                DataSource.organization_id == job.organization_id,
+            )))
+            for source_id in power_bi_source_ids:
+                try:
+                    await PowerBIService(session, settings, job.organization_id, job.requested_by).metadata(source_id)
+                except AppError as exc:
+                    raise JobFailureError(exc.code, exc.message) from exc
+        requested_by = getattr(job, "requested_by", None)
+        power_bi_context = job.input.get("power_bi_context")
+        power_bi_identity = job.input.get("power_bi_identity")
         table_scope = tuple(
             SourceTableScope.model_validate(item) for item in job.input["table_scope"]
         )
@@ -230,6 +255,10 @@ async def run_chat_query_job(job_id: uuid.UUID) -> dict[str, object]:
         command_name=command_name,
         clarification_round=clarification_round,
         pausable=checkpointer is not None,
+        requested_by=requested_by,
+        power_bi_source_ids=frozenset(power_bi_source_ids),
+        power_bi_context=power_bi_context,
+        power_bi_identity=power_bi_identity,
     )
     run = int(pause.get("run", 1)) if resuming else 1
     try:

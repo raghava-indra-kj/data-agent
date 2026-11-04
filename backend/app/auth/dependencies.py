@@ -29,6 +29,7 @@ async def get_current_user(
     user = await AuthRepository(session).get_user(claims.user_id)
     if user is None or not user.is_active:
         raise AppError("AUTHENTICATION_REQUIRED", "Authentication required.", 401)
+    session.info["actor_user_id"] = user.id
     return user
 
 

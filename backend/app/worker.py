@@ -22,6 +22,7 @@ from app.knowledge import models as knowledge_models  # noqa: F401
 from app.knowledge.jobs import register_knowledge_handlers
 from app.models import models as model_config_models  # noqa: F401
 from app.organizations import models as organization_models  # noqa: F401
+from app.power_bi import models as power_bi_models  # noqa: F401
 from app.reporting import models as reporting_models  # noqa: F401
 from app.reporting.jobs import register_reporting_handlers
 from app.jobs.worker import Worker

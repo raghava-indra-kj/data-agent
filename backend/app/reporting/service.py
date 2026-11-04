@@ -137,6 +137,8 @@ class ReportingService:
         job = await self.session.get(Job, payload.source_job_id)
         if job is None or job.organization_id != organization_id or job.status != "succeeded":
             raise AppError("WIDGET_SOURCE_JOB_INVALID", "The source analysis is unavailable.", 400)
+        if job.input.get("power_bi_private"):
+            raise AppError("POWER_BI_SHARING_UNAVAILABLE", "Private Power BI results cannot be saved to a shared dashboard.", 403)
         sql_item = await self.repo.source_sql_for_job(payload.source_sql_execution_id, job.id)
         if sql_item is None or sql_item.status != "succeeded":
             raise AppError("WIDGET_SOURCE_SQL_INVALID", "The source SQL execution is unavailable.", 400)

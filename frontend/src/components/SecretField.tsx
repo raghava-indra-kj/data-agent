@@ -25,7 +25,7 @@ export function SecretField({ label, value, onChange, name, error, autoComplete 
             <Label>{label}</Label>
             <div className="secret-field-row">
                 <Input type={visible ? 'text' : 'password'} value={value} onChange={e => onChange(e.target.value)} autoComplete={autoComplete}/>
-                <Button type="button" variant="ghost" size="sm" isIconOnly className="secret-field-toggle" aria-label={toggleLabel} title={toggleLabel} onPress={() => setVisible(v => !v)}>
+                <Button type="button" variant="ghost" size="sm" isIconOnly className="secret-field-toggle" aria-label={toggleLabel} onPress={() => setVisible(v => !v)}>
                     {visible ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
                 </Button>
                 <Button type="button" variant="ghost" size="sm" isDisabled={!value} onPress={() => void copy()}>{copied ? 'Copied' : 'Copy'}</Button>

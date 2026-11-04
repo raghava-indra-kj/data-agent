@@ -333,6 +333,7 @@ export function TableScopeSelector({
               )}
               {activeSource &&
                 (() => {
+                  if (dataSources.find((source) => source.id === activeSource.id)?.kind === 'powerbi') return <p className="p-4 text-sm">Power BI uses your authorized semantic model. Open the report to choose page filters and slicers for a question.</p>;
                   const item = displayedScope.find(
                     (entry) => entry.data_source_id === activeSource.id,
                   ) ?? { data_source_id: activeSource.id, mode: 'all' as const, tables: [] };

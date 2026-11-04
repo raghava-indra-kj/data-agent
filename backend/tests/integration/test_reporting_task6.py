@@ -124,6 +124,7 @@ async def test_save_widget_and_background_refresh_preserves_provenance(
                 finished_at=now,
             )
         )
+        await session.flush()
         session.add(
             ToolExecution(
                 id=tool_id,
@@ -137,6 +138,7 @@ async def test_save_widget_and_background_refresh_preserves_provenance(
                 finished_at=now,
             )
         )
+        await session.flush()
         session.add(
             SQLExecution(
                 id=source_sql_id,
@@ -153,6 +155,7 @@ async def test_save_widget_and_background_refresh_preserves_provenance(
                 finished_at=now,
             )
         )
+        await session.flush()
         session.add(
             JobArtifact(
                 job_id=source_job_id,

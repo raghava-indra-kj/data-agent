@@ -383,6 +383,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/data-sources/power-bi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Source */
+        post: operations["create_source_api_v1_data_sources_power_bi_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/data-sources/{data_source_id}": {
         parameters: {
             query?: never;
@@ -464,6 +481,40 @@ export interface paths {
         put?: never;
         /** Test Data Source */
         post: operations["test_data_source_api_v1_data_sources__data_source_id__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-sources/{source_id}/power-bi/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh */
+        post: operations["refresh_api_v1_data_sources__source_id__power_bi_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-sources/{source_id}/power-bi/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reports */
+        get: operations["reports_api_v1_data_sources__source_id__power_bi_reports_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1082,6 +1133,125 @@ export interface paths {
         patch: operations["update_organization_api_v1_organizations__organization_id__patch"];
         trace?: never;
     };
+    "/api/v1/power-bi/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Connections */
+        get: operations["connections_api_v1_power_bi_connections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power-bi/connections/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Connect */
+        post: operations["connect_api_v1_power_bi_connections_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power-bi/connections/{connection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Disconnect */
+        delete: operations["disconnect_api_v1_power_bi_connections__connection_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power-bi/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Features */
+        get: operations["features_api_v1_power_bi_features_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power-bi/reports/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discover */
+        post: operations["discover_api_v1_power_bi_reports_discover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power-bi/reports/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve */
+        post: operations["resolve_api_v1_power_bi_reports_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power-bi/reports/{binding_id}/embed-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Embed */
+        post: operations["embed_api_v1_power_bi_reports__binding_id__embed_config_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1252,6 +1422,25 @@ export interface components {
             sqlstate?: string | null;
             /** Stage */
             stage: string;
+        };
+        /** ConnectionResponse */
+        ConnectionResponse: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
+            /** Tenant Id */
+            tenant_id: string;
+        };
+        /** ConnectionStart */
+        ConnectionStart: {
+            /** Authorization Url */
+            authorization_url: string;
         };
         /** ConversationCreate */
         ConversationCreate: {
@@ -1624,6 +1813,75 @@ export interface components {
             /** Username */
             username: string;
         };
+        /** DaxExecutionResponse */
+        DaxExecutionResponse: {
+            /** Columns */
+            columns: string[] | null;
+            /** Context */
+            context: {
+                [key: string]: unknown;
+            };
+            /**
+             * Data Source Id
+             * Format: uuid
+             */
+            data_source_id: string;
+            /** Dax Text */
+            dax_text: string;
+            /** Duration Ms */
+            duration_ms: number | null;
+            /** Error Code */
+            error_code: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Result Bytes */
+            result_bytes: number | null;
+            /** Row Count */
+            row_count: number | null;
+            /** Semantic Model Id */
+            semantic_model_id: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Status */
+            status: string;
+            /**
+             * Tool Execution Id
+             * Format: uuid
+             */
+            tool_execution_id: string;
+            /** Truncated */
+            truncated: boolean;
+        };
+        /** EmbedConfiguration */
+        EmbedConfiguration: {
+            /** Access Token */
+            access_token: string;
+            /** Embed Url */
+            embed_url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Report Id */
+            report_id: string;
+            /**
+             * Token Type
+             * @default Aad
+             * @constant
+             */
+            token_type: "Aad";
+        };
         /** ExcelTableExport */
         ExcelTableExport: {
             /** Headers */
@@ -1789,6 +2047,8 @@ export interface components {
             payload: {
                 [key: string]: unknown;
             };
+            /** Source Dax Execution Id */
+            source_dax_execution_id?: string | null;
             /** Source Sql Execution Id */
             source_sql_execution_id: string | null;
             table_rows?: components["schemas"]["TableRowsInfo"] | null;
@@ -1797,6 +2057,8 @@ export interface components {
         JobExecutionTraceResponse: {
             /** Artifacts */
             artifacts?: components["schemas"]["JobArtifactResponse"][];
+            /** Dax */
+            dax?: components["schemas"]["DaxExecutionResponse"][];
             /** Models */
             models?: components["schemas"]["ModelExecutionResponse"][];
             /** Sql */
@@ -2154,6 +2416,7 @@ export interface components {
             content: string;
             /** Model Profile Id */
             model_profile_id?: string | null;
+            power_bi_context?: components["schemas"]["ReportContext"] | null;
             /** Reasoning Effort */
             reasoning_effort?: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") | null;
         };
@@ -2541,10 +2804,99 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** PowerBICreate */
+        PowerBICreate: {
+            /**
+             * Embedding Enabled
+             * @default true
+             */
+            embedding_enabled: boolean;
+            /** Name */
+            name: string;
+            /** Report Url */
+            report_url: string;
+        };
+        /** PowerBIFeatures */
+        PowerBIFeatures: {
+            /** Configured */
+            configured: boolean;
+            /** Embedding Enabled */
+            embedding_enabled: boolean;
+            /** Enabled */
+            enabled: boolean;
+        };
         /** RefreshRequest */
         RefreshRequest: {
             /** Refresh Token */
             refresh_token: string;
+        };
+        /** ReportCandidate */
+        ReportCandidate: {
+            /** Name */
+            name: string;
+            /** Report Id */
+            report_id: string;
+            /** Semantic Model Id */
+            semantic_model_id: string;
+            /** Web Url */
+            web_url: string;
+            /** Workspace Id */
+            workspace_id?: string | null;
+        };
+        /** ReportContext */
+        ReportContext: {
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Mode
+             * @default report_view
+             * @enum {string}
+             */
+            mode: "report_view" | "model";
+            /** Page Display Name */
+            page_display_name: string;
+            /** Page Name */
+            page_name: string;
+            /**
+             * Report Binding Id
+             * Format: uuid
+             */
+            report_binding_id: string;
+            /** Unsupported */
+            unsupported?: string[];
+        };
+        /** ReportLookup */
+        ReportLookup: {
+            /** Query */
+            query: string;
+        };
+        /** ReportResponse */
+        ReportResponse: {
+            /**
+             * Data Source Id
+             * Format: uuid
+             */
+            data_source_id: string;
+            /** Embedding Enabled */
+            embedding_enabled: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Report Id */
+            report_id: string;
+            /** Web Url */
+            web_url: string;
         };
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
@@ -3947,6 +4299,41 @@ export interface operations {
             };
         };
     };
+    create_source_api_v1_data_sources_power_bi_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-ID"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PowerBICreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_data_source_api_v1_data_sources__data_source_id__get: {
         parameters: {
             query?: never;
@@ -4176,6 +4563,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobAcceptedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_api_v1_data_sources__source_id__power_bi_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-ID"?: string | null;
+            };
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reports_api_v1_data_sources__source_id__power_bi_reports_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-ID"?: string | null;
+            };
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -5733,6 +6186,224 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrganizationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    connections_api_v1_power_bi_connections_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-ID"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    connect_api_v1_power_bi_connections_start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-ID"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionStart"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disconnect_api_v1_power_bi_connections__connection_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-ID"?: string | null;
+            };
+            path: {
+                connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    features_api_v1_power_bi_features_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PowerBIFeatures"];
+                };
+            };
+        };
+    };
+    discover_api_v1_power_bi_reports_discover_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-ID"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportLookup"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_api_v1_power_bi_reports_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-ID"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportLookup"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportCandidate"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    embed_api_v1_power_bi_reports__binding_id__embed_config_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-ID"?: string | null;
+            };
+            path: {
+                binding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbedConfiguration"];
                 };
             };
             /** @description Validation Error */

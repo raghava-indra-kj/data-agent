@@ -72,10 +72,11 @@ async def job_events(
     context: tuple[Organization, OrganizationMembership] = Depends(get_current_organization),
     settings: Settings = Depends(get_settings),
 ) -> StreamingResponse:
-    organization, _ = context
+    organization, membership = context
     session_factory = get_session_factory()
     # Authorize before StreamingResponse sends HTTP 200 headers, using a short-lived session.
     async with session_factory() as session:
+        session.info["actor_user_id"] = membership.user_id
         await JobService(session, settings).get_for_org(job_id, organization.id)
     if last_event_id and last_event_id.isdigit():
         after_sequence = max(after_sequence, int(last_event_id))
@@ -85,6 +86,7 @@ async def job_events(
         after_sequence=after_sequence,
         session_factory=session_factory,
         settings=settings,
+        actor_user_id=membership.user_id,
     )
     return StreamingResponse(
         generator,

@@ -10,6 +10,7 @@ from app.conversations.models import Conversation, ConversationDataSource, Messa
 from app.conversations.schemas import AnswerReviewCounts
 from app.core.pagination import keyset_page
 from app.jobs.models import Job
+from app.power_bi.access import conversation_visibility
 
 UNTITLED_CONVERSATION = "Untitled analysis"
 
@@ -29,7 +30,7 @@ class ConversationRepository:
 
     async def delete_all_for_org(self, organization_id: uuid.UUID) -> int:
         result = await self.session.execute(
-            delete(Conversation).where(Conversation.organization_id == organization_id)
+            delete(Conversation).where(Conversation.organization_id == organization_id, conversation_visibility(self.session))
         )
         return result.rowcount
 
@@ -40,6 +41,7 @@ class ConversationRepository:
             select(Conversation).where(
                 Conversation.id == conversation_id,
                 Conversation.organization_id == organization_id,
+                conversation_visibility(self.session),
             )
         )
         return result.scalar_one_or_none()
@@ -52,6 +54,7 @@ class ConversationRepository:
             .where(
                 Conversation.id == conversation_id,
                 Conversation.organization_id == organization_id,
+                conversation_visibility(self.session),
             )
             .with_for_update()
         )
@@ -65,7 +68,7 @@ class ConversationRepository:
         after: Sequence[object] | None,
         limit: int,
     ) -> list[Conversation]:
-        statement = select(Conversation).where(Conversation.organization_id == organization_id)
+        statement = select(Conversation).where(Conversation.organization_id == organization_id, conversation_visibility(self.session))
         if search:
             escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             title = func.coalesce(

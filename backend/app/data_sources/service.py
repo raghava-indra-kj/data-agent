@@ -239,6 +239,8 @@ class DataSourceService:
             data_source.kind == "mssql"
             and data_source.config.get("authentication_mode", "sql") == "windows"
         )
+        if data_source.kind == "powerbi" and (payload.config is not None or payload.credentials is not None):
+            raise AppError("POWER_BI_CONFIG_MANAGED", "Manage reports and your Microsoft connection from the Power BI settings.", 422)
         next_config_input = payload.config if payload.config is not None else data_source.config
         if data_source.kind == "mssql":
             try:
@@ -378,7 +380,9 @@ class DataSourceService:
         organization_id: uuid.UUID,
         requested_by: uuid.UUID,
     ) -> uuid.UUID:
-        await self.require_for_org(data_source_id, organization_id)
+        source = await self.require_for_org(data_source_id, organization_id)
+        if source.kind == "powerbi":
+            raise AppError("POWER_BI_REFRESH_REQUIRED", "Use Refresh access on the Power BI source.", 422)
         job = await JobService(self.session, self.settings).create_job(
             organization_id=organization_id,
             requested_by=requested_by,
@@ -388,6 +392,8 @@ class DataSourceService:
         return job.id
 
     async def resolve_adapter(self, data_source: DataSource) -> DataSourceAdapter:
+        if data_source.kind == "powerbi":
+            raise AppError("POWER_BI_OPERATION_UNSUPPORTED", "Power BI uses Fabric IQ, not a database connection.", 422)
         credentials: dict[str, Any] | None = None
         windows_auth = (
             data_source.kind == "mssql"

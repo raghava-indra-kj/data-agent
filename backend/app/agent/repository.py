@@ -142,6 +142,12 @@ class AgentExecutionRepository:
         )
         return list(result.scalars().all())
 
+    async def list_dax(self, job_id: uuid.UUID):
+        from app.power_bi.models import DaxExecution
+        result = await self.session.scalars(select(DaxExecution).join(ToolExecution).where(
+            ToolExecution.job_id == job_id).order_by(ToolExecution.sequence))
+        return list(result)
+
     async def list_artifacts(self, job_id: uuid.UUID) -> list[JobArtifact]:
         result = await self.session.execute(
             select(JobArtifact)

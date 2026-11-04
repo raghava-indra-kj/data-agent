@@ -31,6 +31,9 @@ import {
   useUpdateTableScope,
 } from '../hooks/useConversations';
 import type { ReasoningEffort } from '../reasoning-effort';
+import { PowerBICanvas, type ReportCanvasHandle } from '../../power-bi/PowerBICanvas';
+import { ReportLauncher } from '../../power-bi/ReportLauncher';
+import type { PowerBIReport } from '../../power-bi/api';
 
 type PendingConversationState = {
   pendingQuestion?: string;
@@ -52,6 +55,9 @@ export function ConversationPage() {
   const { activeOrganization } = useOrganization();
   const { user } = useAuth();
   const orgId = activeOrganization?.id ?? null;
+  const [selectedReport, setSelectedReport] = useState<PowerBIReport | null>(null);
+  const reportCanvas = useRef<ReportCanvasHandle>(null);
+  useEffect(() => { setSelectedReport(null); }, [conversationId, orgId, user?.id]);
 
   const conversation = useConversation(conversationId);
   const messages = useConversationMessages(conversationId);
@@ -119,10 +125,12 @@ export function ConversationPage() {
       if (!conversationId) throw new Error('Conversation ID is missing.');
       setIsSubmitting(true);
       try {
+        const reportContext = await reportCanvas.current?.capture();
         const accepted = await api.submitMessage(conversationId, {
           content,
           model_profile_id: modelProfileId ?? null,
           reasoning_effort: effort ?? null,
+          ...(reportContext ? { power_bi_context: reportContext } : {}),
         });
         appendOptimisticMessage(accepted, content);
         await jobManager.registerJob(accepted.job_id);
@@ -378,9 +386,13 @@ export function ConversationPage() {
   );
 
   return (
+    <div className="conversation-with-report">
     <div ref={workspaceRef} className="chat-workspace">
       <header className="conversation-heading">
         <h1>{conversation.data?.title?.trim() || 'Analysis'}</h1>
+        {(conversation.data?.data_source_ids ?? []).some((id) => sourceMap.get(id)?.kind === 'powerbi') && <ReportLauncher
+          sourceIds={(conversation.data?.data_source_ids ?? []).filter((id) => sourceMap.get(id)?.kind === 'powerbi')}
+          onOpen={setSelectedReport} />}
         <ConversationActions
           key={conversationId}
           id={conversationId}
@@ -491,6 +503,8 @@ export function ConversationPage() {
         inputLabel="Ask a follow-up"
         dataSourceSelection="hidden"
       />
+    </div>
+    {selectedReport && <PowerBICanvas key={`${orgId}:${user?.id}:${selectedReport.id}`} binding={selectedReport} onClose={() => setSelectedReport(null)} ref={reportCanvas} />}
     </div>
   );
 }

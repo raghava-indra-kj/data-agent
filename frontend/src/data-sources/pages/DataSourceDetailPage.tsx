@@ -21,6 +21,7 @@ import { useJobManager } from '../../jobs/JobManagerProvider';
 import { useOrganization } from '../../organizations/OrganizationProvider';
 import * as api from '../api/data-source-api';
 import { ConnectionDiagnosticsPanel } from '../components/ConnectionDiagnosticsPanel';
+import { PowerBIDetails } from '../../power-bi/PowerBIDetails';
 
 const configLabels: Record<string, string> = {
   host: 'Host',
@@ -53,7 +54,7 @@ export function DataSourceDetailPage() {
   const schemaQuery = useQuery({
     queryKey: queryKeys.dataSources.schema(orgId, dataSourceId),
     queryFn: () => api.getDataSourceSchema(dataSourceId),
-    enabled: Boolean(dataSourceId),
+    enabled: Boolean(sourceQuery.data && sourceQuery.data.kind !== 'powerbi'),
     staleTime: 60000,
   });
   const test = useMutation({
@@ -87,6 +88,7 @@ export function DataSourceDetailPage() {
       <PageError title="Unable to load this data source" retry={() => void sourceQuery.refetch()} />
     );
   const source = sourceQuery.data;
+  if (source.kind === 'powerbi') return <PowerBIDetails source={source} />;
   const tables = (schemaQuery.data?.tables ?? []).filter((table) =>
     ((table.schema ?? '') + '.' + table.name)
       .toLocaleLowerCase()

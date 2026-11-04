@@ -127,6 +127,9 @@ class JobArtifact(Base):
     source_sql_execution_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sql_executions.id", ondelete="SET NULL"), nullable=True
     )
+    source_dax_execution_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("dax_executions.id", ondelete="SET NULL"), nullable=True
+    )
     payload: Mapped[dict[str, object]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )

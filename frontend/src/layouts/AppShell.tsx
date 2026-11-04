@@ -77,8 +77,8 @@ function ClearChatsButton({ onClick }: { onClick(): void }) {
       >
         <Trash2 size={14} aria-hidden="true" />
       </button>
-      <Tooltip.Content id={tooltipId} triggerRef={triggerRef} placement="right">
-        Delete all chats
+      <Tooltip.Content triggerRef={triggerRef} placement="right">
+        <span id={tooltipId}>Delete all chats</span>
       </Tooltip.Content>
     </Tooltip>
   );

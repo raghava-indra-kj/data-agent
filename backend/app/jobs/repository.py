@@ -7,6 +7,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.jobs.models import Job, JobEvent
+from app.power_bi.access import job_visibility
 
 
 class JobRepository:
@@ -34,7 +35,7 @@ class JobRepository:
         self, job_id: uuid.UUID, organization_id: uuid.UUID
     ) -> Job | None:
         result = await self.session.execute(
-            select(Job).where(Job.id == job_id, Job.organization_id == organization_id)
+            select(Job).where(Job.id == job_id, Job.organization_id == organization_id, job_visibility(self.session))
         )
         return result.scalar_one_or_none()
 
@@ -59,7 +60,7 @@ class JobRepository:
             .scalar_subquery()
         )
         statement = select(Job, first_event_at, last_event_at).where(
-            Job.organization_id == organization_id
+            Job.organization_id == organization_id, job_visibility(self.session)
         )
         if status is not None:
             statement = statement.where(Job.status == status)
@@ -118,7 +119,7 @@ class JobRepository:
     ) -> Job | None:
         result = await self.session.execute(
             select(Job)
-            .where(Job.id == job_id, Job.organization_id == organization_id)
+            .where(Job.id == job_id, Job.organization_id == organization_id, job_visibility(self.session))
             .with_for_update()
         )
         return result.scalar_one_or_none()

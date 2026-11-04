@@ -71,8 +71,16 @@ class ConversationService:
         payload: ConversationCreate,
     ) -> Conversation:
         source_service = DataSourceService(self.session, self.settings)
+        power_bi_private = False
+        power_bi_identity = None
         for source_id in payload.data_source_ids:
             source = await source_service.require_for_org(source_id, organization_id)
+            if source.kind == "powerbi":
+                from app.power_bi.service import PowerBIService
+                power_bi = PowerBIService(self.session, self.settings, organization_id, user_id)
+                await power_bi.metadata(source_id)
+                power_bi_identity = await power_bi.current_identity()
+                power_bi_private = True
             if source.status != "active":
                 raise AppError(
                     "DATASOURCE_NOT_ACTIVE",
@@ -93,6 +101,8 @@ class ConversationService:
         conversation = Conversation(
             organization_id=organization_id,
             title=payload.title,
+            private_to_creator=power_bi_private,
+            power_bi_identity=power_bi_identity,
             table_scope=table_scope,
             created_by=user_id,
             model_profile_id=payload.model_profile_id,
@@ -210,6 +220,20 @@ class ConversationService:
             if key in original_metadata:
                 extra[key] = original_metadata[key]
         profile = (asked.metadata_json or {}).get("model_profile_id")
+        report_context = None
+        if getattr(conversation, "private_to_creator", False):
+            original_job = (
+                await JobRepository(self.session).get_for_organization(
+                    asked.job_id, organization_id
+                )
+                if asked.job_id else None
+            )
+            if original_job is None:
+                raise AppError(
+                    "CLARIFICATION_NOT_FOUND", "The original question was not found.", 404
+                )
+            # A clarification continues the captured view even if the canvas has since closed.
+            report_context = (original_job.input_data or {}).get("power_bi_context")
         return await self.submit_message(
             conversation_id=conversation_id,
             organization_id=organization_id,
@@ -218,6 +242,7 @@ class ConversationService:
                 content=content,
                 model_profile_id=uuid.UUID(str(profile)) if profile else None,
                 reasoning_effort=original_metadata.get("reasoning_effort"),
+                power_bi_context=report_context,
             ),
             extra_metadata=extra,
         )
@@ -368,7 +393,20 @@ class ConversationService:
     ) -> tuple[Message, uuid.UUID]:
         conversation = await self.require_for_org(conversation_id, organization_id)
         await self._ensure_no_pending_questions(conversation.id)
+        if getattr(conversation, "private_to_creator", False):
+            from app.power_bi.service import PowerBIService
+            await PowerBIService(self.session, self.settings, organization_id, user_id).require_identity(conversation.power_bi_identity)
         source_ids = await self.repo.source_ids(conversation.id)
+        if payload.power_bi_context is not None:
+            from app.power_bi.context import validate_context
+            from app.power_bi.service import PowerBIService
+            service = PowerBIService(self.session, self.settings, organization_id, user_id)
+            report = await service.report(payload.power_bi_context.report_binding_id)
+            if report.data_source_id not in source_ids:
+                raise AppError("POWER_BI_CONTEXT_INVALID", "Select this report's source for the conversation first.", 422)
+            validate_context(payload.power_bi_context)
+            token, _, _ = await service.token()
+            await service.validate_report(report, token)
         if not source_ids:
             raise AppError(
                 "CONVERSATION_DATASOURCE_REQUIRED",
@@ -451,6 +489,9 @@ class ConversationService:
                 "model_profile_id": str(profile_id),
                 "reasoning_effort": effort,
                 "table_scope": table_scope,
+                **({"power_bi_private": True} if getattr(conversation, "private_to_creator", False) else {}),
+                **({"power_bi_identity": conversation.power_bi_identity} if getattr(conversation, "private_to_creator", False) else {}),
+                **({"power_bi_context": payload.power_bi_context.model_dump(mode="json")} if payload.power_bi_context else {}),
             },
             conversation_id=conversation.id,
             # LLM/query mistakes are corrected inside the bounded agent loop; only the generic

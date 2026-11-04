@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { BookmarkPlus } from 'lucide-react';
-import type { JobArtifact, SqlExecution } from '../api/execution-api';
+import type { JobArtifact, QueryExecution } from '../api/execution-api';
 import { AnalyticalTable } from '../../analytics/table/AnalyticalTable';
 import type { AnalyticalTableModel } from '../../analytics/table/table-domain';
 import type { ArtifactAction, ArtifactMetadata } from '../../analytics/components/ArtifactFrame';
@@ -18,13 +18,13 @@ import { HtmlArtifactCard } from './HtmlArtifactCard';
 import { parseMatrixArtifact } from '../../analytics/matrix/matrix-domain';
 import { AnalyticalMatrix } from '../../analytics/matrix/AnalyticalMatrix';
 
-function sourceMetadata(source: SqlExecution | undefined, dataSourceNames: Record<string, string>) {
+function sourceMetadata(source: QueryExecution | undefined, dataSourceNames: Record<string, string>) {
   return source
     ? {
         name: dataSourceNames[source.data_source_id] ?? 'Data source',
         rowCount: source.row_count,
         durationMs: source.duration_ms,
-        sql: source.sql_text,
+        ...('dax_text' in source ? { dax: source.dax_text } : { sql: source.sql_text }),
         executionId: source.id,
         truncated: source.truncated,
       }
@@ -63,7 +63,7 @@ function CollapsibleTableArtifact({
 }: {
   artifact: JobArtifact;
   model: AnalyticalTableModel;
-  sourceSql?: SqlExecution;
+  sourceSql?: QueryExecution;
   dataSourceNames: Record<string, string>;
   defaultOpen: boolean;
   jobId: string;
@@ -99,7 +99,7 @@ export function ArtifactRenderer({
 }: {
   jobId: string;
   artifacts: JobArtifact[];
-  sql: SqlExecution[];
+  sql: QueryExecution[];
   dataSourceNames?: Record<string, string>;
   excludeTextMarkdown?: string;
   renderReferencedHiddenTables?: boolean;
@@ -111,9 +111,7 @@ export function ArtifactRenderer({
   const chartArtifacts = artifacts.filter((artifact) => artifact.kind === 'chart');
   const normalizedCharts = chartArtifacts
     .map((artifact) => {
-      const source = artifact.source_sql_execution_id
-        ? sqlById.get(artifact.source_sql_execution_id)
-        : undefined;
+      const source = sqlById.get(artifact.source_dax_execution_id ?? artifact.source_sql_execution_id ?? '');
       return normalizeChartArtifact(
         artifact,
         source,
@@ -192,7 +190,7 @@ export function ArtifactRenderer({
           : [],
     };
     const single = chart.provenance.length === 1 ? chart.provenance[0] : undefined;
-    const save = single?.artifactId
+    const save = single?.artifactId && !('dax_text' in (sqlById.get(single.executionId ?? '') ?? {}))
       ? dashboardAction(navigate, jobId, single.artifactId, single.executionId)
       : undefined;
     const sourceIds = chart.provenance
@@ -222,9 +220,7 @@ export function ArtifactRenderer({
   }
 
   for (const [i, { artifact, model }] of visibleTables.entries()) {
-    const sourceSql = artifact.source_sql_execution_id
-      ? sqlById.get(artifact.source_sql_execution_id)
-      : undefined;
+    const sourceSql = sqlById.get(artifact.source_dax_execution_id ?? artifact.source_sql_execution_id ?? '');
     const isLastTable = i === visibleTables.length - 1;
 
     let defaultOpen: boolean;

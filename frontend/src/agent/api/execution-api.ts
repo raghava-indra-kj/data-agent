@@ -5,6 +5,8 @@ type Schemas = components['schemas'];
 export type ExecutionTrace = Schemas['JobExecutionTraceResponse'];
 export type ToolExecution = Schemas['ToolExecutionResponse'];
 export type SqlExecution = Schemas['SQLExecutionResponse'];
+export type DaxExecution = Schemas['DaxExecutionResponse'];
+export type QueryExecution = SqlExecution | DaxExecution;
 export type ModelExecution = Schemas['ModelExecutionResponse'];
 export type JobArtifact = Schemas['JobArtifactResponse'];
 

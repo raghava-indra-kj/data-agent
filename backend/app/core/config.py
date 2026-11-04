@@ -21,6 +21,19 @@ class Settings(BaseSettings):
     app_name: str = "DB Assistant API"
     api_v1_prefix: str = "/api/v1"
 
+    # Optional integration. No Microsoft configuration or network access is needed when off.
+    power_bi_enabled: bool = False
+    power_bi_embedding_enabled: bool = False
+    power_bi_tenant_id: str | None = None
+    power_bi_client_id: str | None = None
+    power_bi_client_secret: str | None = Field(default=None, repr=False)
+    power_bi_redirect_uri: str = "http://localhost:12201/api/v1/power-bi/connections/callback"
+    power_bi_frontend_url: str = "http://localhost:12200"
+    power_bi_mcp_url: str = "https://fabriciq.svc.cloud.microsoft/v1/mcp/fabriciq"
+    power_bi_tool_variant: str = "Fabric.Routing.FabricIQ.V1"
+    power_bi_query_max_rows: int = Field(default=1000, ge=1, le=1000)
+    power_bi_metadata_max_bytes: int = Field(default=2_000_000, ge=1024, le=10_000_000)
+
     database_url: str = "postgresql+asyncpg://dbassistant:dbassistant@localhost:12202/dbassistant"
 
     jwt_secret: str = Field(default="development-only-change-me-please-32chars")

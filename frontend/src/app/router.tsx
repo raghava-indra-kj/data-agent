@@ -16,6 +16,7 @@ export const router = createBrowserRouter([
         errorElement: <ErrorBoundary />,
         lazy: async () => ({ Component: (await import('../layouts/AppShell')).AppShell }),
         children: [
+          { path: '/power-bi/connected', errorElement: <ErrorBoundary />, lazy: async () => ({ Component: (await import('../power-bi/PowerBIConnectedPage')).PowerBIConnectedPage }) },
           { path: '/ask', errorElement: <ErrorBoundary />, lazy: async () => ({ Component: (await import('../conversations/pages/AskPage')).AskPage }) },
           { path: '/conversations/:conversationId', errorElement: <ErrorBoundary />, lazy: async () => ({ Component: (await import('../conversations/pages/ConversationPage')).ConversationPage }) },
           { path: '/dashboards', errorElement: <ErrorBoundary />, lazy: async () => ({ Component: (await import('../dashboards/pages/DashboardsPage')).DashboardsPage }) },

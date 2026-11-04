@@ -87,6 +87,10 @@ class AgentToolContext:
     clarification_round: int = 0
     # True when a checkpointer can pause this run for the user's answers and resume it later.
     pausable: bool = False
+    requested_by: uuid.UUID | None = None
+    power_bi_source_ids: frozenset[uuid.UUID] = frozenset()
+    power_bi_context: dict[str, object] | None = None
+    power_bi_identity: dict[str, str] | None = None
 
     def selected_scope(self, source_id: uuid.UUID) -> SourceTableScope | None:
         return next((item for item in self.table_scope

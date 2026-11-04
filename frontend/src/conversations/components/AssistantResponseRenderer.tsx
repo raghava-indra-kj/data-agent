@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import type { JobArtifact, SqlExecution } from '../../agent/api/execution-api';
+import type { JobArtifact, QueryExecution } from '../../agent/api/execution-api';
 import { ArtifactRenderer } from '../../agent/components/ArtifactRenderer';
 import { parseArtifactDirectives } from '../../agent/lib/artifact-directives';
 import { AssistantMarkdown } from './AssistantMarkdown';
@@ -15,7 +15,7 @@ const InlineArtifact = memo(function InlineArtifact({
 }: {
   artifact: JobArtifact;
   jobId: string;
-  sql: SqlExecution[];
+  sql: QueryExecution[];
   dataSourceNames: Record<string, string>;
   onFollowUp?(question: string): Promise<void> | void;
 }) {
@@ -50,7 +50,7 @@ export function AssistantResponseRenderer({
   jobId: string;
   markdown: string;
   artifacts: JobArtifact[];
-  sql: SqlExecution[];
+  sql: QueryExecution[];
   dataSourceNames?: Record<string, string>;
   traceLoading?: boolean;
   traceUnavailable?: boolean;

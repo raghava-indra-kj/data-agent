@@ -30,6 +30,7 @@ export type ArtifactMetadata = {
     rowCount?: number | null;
     durationMs?: number | null;
     sql?: string;
+    dax?: string;
     executionId?: string;
     truncated?: boolean;
   }>;
@@ -131,6 +132,7 @@ function ArtifactDetails({
                     </pre>
                   </details>
                 )}
+                {source.dax && <details><summary>DAX query</summary><pre aria-label="DAX query"><code>{source.dax}</code></pre></details>}
               </section>
             ))}
             {metadata.notes?.map((note) => (

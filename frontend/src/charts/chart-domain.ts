@@ -1,4 +1,4 @@
-import type { JobArtifact, SqlExecution } from '../agent/api/execution-api';
+import type { JobArtifact, QueryExecution } from '../agent/api/execution-api';
 import {
   MAX_METRIC_DETAILS,
   MAX_METRICS,
@@ -237,16 +237,17 @@ export function chartTypeLabel(type: ChartType, stacked = false): string {
 
 export function normalizeChartArtifact(
   artifact: JobArtifact,
-  sql: SqlExecution | undefined,
+  sql: QueryExecution | undefined,
   dataSourceName: string,
 ): NormalizedChartModel | null {
   const payload = object(artifact.payload);
   if (!payload || payload.schema_version !== 1 || payload.renderer !== 'frontend') return null;
-  const payloadSqlId = text(payload.source_sql_execution_id);
+  const payloadSqlId = text(payload.source_dax_execution_id ?? payload.source_sql_execution_id);
+  const sourceExecutionId = artifact.source_dax_execution_id ?? artifact.source_sql_execution_id;
   if (
     payloadSqlId &&
-    artifact.source_sql_execution_id &&
-    payloadSqlId !== artifact.source_sql_execution_id
+    sourceExecutionId &&
+    payloadSqlId !== sourceExecutionId
   )
     return null;
   const chartType = text(payload.chart_type) as ChartType | null;
@@ -272,7 +273,7 @@ export function normalizeChartArtifact(
     {
       dataSourceId: sourceId,
       dataSourceName: dataSourceName || 'Data source',
-      executionId: artifact.source_sql_execution_id ?? undefined,
+      executionId: sourceExecutionId ?? undefined,
       artifactId: artifact.id,
     },
   ];

@@ -358,6 +358,48 @@
         "title": "ConnectionDiagnostics",
         "type": "object"
       },
+      "ConnectionResponse": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tenant_id": {
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "display_name",
+          "tenant_id",
+          "status"
+        ],
+        "title": "ConnectionResponse",
+        "type": "object"
+      },
+      "ConnectionStart": {
+        "properties": {
+          "authorization_url": {
+            "title": "Authorization Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "title": "ConnectionStart",
+        "type": "object"
+      },
       "ConversationCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1280,6 +1322,187 @@
         "title": "DatabaseCredentials",
         "type": "object"
       },
+      "DaxExecutionResponse": {
+        "properties": {
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          },
+          "context": {
+            "additionalProperties": true,
+            "title": "Context",
+            "type": "object"
+          },
+          "data_source_id": {
+            "format": "uuid",
+            "title": "Data Source Id",
+            "type": "string"
+          },
+          "dax_text": {
+            "title": "Dax Text",
+            "type": "string"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "result_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Bytes"
+          },
+          "row_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Count"
+          },
+          "semantic_model_id": {
+            "title": "Semantic Model Id",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tool_execution_id": {
+            "format": "uuid",
+            "title": "Tool Execution Id",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "tool_execution_id",
+          "data_source_id",
+          "semantic_model_id",
+          "dax_text",
+          "status",
+          "columns",
+          "row_count",
+          "truncated",
+          "result_bytes",
+          "duration_ms",
+          "error_code",
+          "error_message",
+          "context",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "DaxExecutionResponse",
+        "type": "object"
+      },
+      "EmbedConfiguration": {
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "embed_url": {
+            "title": "Embed Url",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "report_id": {
+            "title": "Report Id",
+            "type": "string"
+          },
+          "token_type": {
+            "const": "Aad",
+            "default": "Aad",
+            "title": "Token Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report_id",
+          "embed_url",
+          "access_token",
+          "expires_at"
+        ],
+        "title": "EmbedConfiguration",
+        "type": "object"
+      },
       "ExcelTableExport": {
         "properties": {
           "headers": {
@@ -1727,6 +1950,18 @@
             "title": "Payload",
             "type": "object"
           },
+          "source_dax_execution_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Dax Execution Id"
+          },
           "source_sql_execution_id": {
             "anyOf": [
               {
@@ -1769,6 +2004,13 @@
               "$ref": "#/components/schemas/JobArtifactResponse"
             },
             "title": "Artifacts",
+            "type": "array"
+          },
+          "dax": {
+            "items": {
+              "$ref": "#/components/schemas/DaxExecutionResponse"
+            },
+            "title": "Dax",
             "type": "array"
           },
           "models": {
@@ -2684,6 +2926,16 @@
               }
             ],
             "title": "Model Profile Id"
+          },
+          "power_bi_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "reasoning_effort": {
             "anyOf": [
@@ -3759,6 +4011,57 @@
         "title": "PostgresDataSourceCreate",
         "type": "object"
       },
+      "PowerBICreate": {
+        "additionalProperties": false,
+        "properties": {
+          "embedding_enabled": {
+            "default": true,
+            "title": "Embedding Enabled",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "report_url": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Report Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "report_url"
+        ],
+        "title": "PowerBICreate",
+        "type": "object"
+      },
+      "PowerBIFeatures": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "embedding_enabled": {
+            "title": "Embedding Enabled",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "configured",
+          "embedding_enabled"
+        ],
+        "title": "PowerBIFeatures",
+        "type": "object"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -3771,6 +4074,160 @@
           "refresh_token"
         ],
         "title": "RefreshRequest",
+        "type": "object"
+      },
+      "ReportCandidate": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "report_id": {
+            "title": "Report Id",
+            "type": "string"
+          },
+          "semantic_model_id": {
+            "title": "Semantic Model Id",
+            "type": "string"
+          },
+          "web_url": {
+            "title": "Web Url",
+            "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "report_id",
+          "semantic_model_id",
+          "name",
+          "web_url"
+        ],
+        "title": "ReportCandidate",
+        "type": "object"
+      },
+      "ReportContext": {
+        "additionalProperties": false,
+        "properties": {
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "filters": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 100,
+            "title": "Filters",
+            "type": "array"
+          },
+          "mode": {
+            "default": "report_view",
+            "enum": [
+              "report_view",
+              "model"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "page_display_name": {
+            "maxLength": 255,
+            "title": "Page Display Name",
+            "type": "string"
+          },
+          "page_name": {
+            "maxLength": 255,
+            "title": "Page Name",
+            "type": "string"
+          },
+          "report_binding_id": {
+            "format": "uuid",
+            "title": "Report Binding Id",
+            "type": "string"
+          },
+          "unsupported": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Unsupported",
+            "type": "array"
+          }
+        },
+        "required": [
+          "report_binding_id",
+          "page_name",
+          "page_display_name",
+          "captured_at"
+        ],
+        "title": "ReportContext",
+        "type": "object"
+      },
+      "ReportLookup": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "ReportLookup",
+        "type": "object"
+      },
+      "ReportResponse": {
+        "properties": {
+          "data_source_id": {
+            "format": "uuid",
+            "title": "Data Source Id",
+            "type": "string"
+          },
+          "embedding_enabled": {
+            "title": "Embedding Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "report_id": {
+            "title": "Report Id",
+            "type": "string"
+          },
+          "web_url": {
+            "title": "Web Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "data_source_id",
+          "report_id",
+          "name",
+          "web_url",
+          "embedding_enabled"
+        ],
+        "title": "ReportResponse",
         "type": "object"
       },
       "ResetPasswordRequest": {
@@ -6672,6 +7129,70 @@
         ]
       }
     },
+    "/api/v1/data-sources/power-bi": {
+      "post": {
+        "operationId": "create_source_api_v1_data_sources_power_bi_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PowerBICreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSourceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Source",
+        "tags": [
+          "power-bi"
+        ]
+      }
+    },
     "/api/v1/data-sources/{data_source_id}": {
       "delete": {
         "operationId": "delete_data_source_api_v1_data_sources__data_source_id__delete",
@@ -7183,6 +7704,136 @@
         "summary": "Test Data Source",
         "tags": [
           "data-sources"
+        ]
+      }
+    },
+    "/api/v1/data-sources/{source_id}/power-bi/refresh": {
+      "post": {
+        "operationId": "refresh_api_v1_data_sources__source_id__power_bi_refresh_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Refresh",
+        "tags": [
+          "power-bi"
+        ]
+      }
+    },
+    "/api/v1/data-sources/{source_id}/power-bi/reports": {
+      "get": {
+        "operationId": "reports_api_v1_data_sources__source_id__power_bi_reports_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportResponse"
+                  },
+                  "title": "Response Reports Api V1 Data Sources  Source Id  Power Bi Reports Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reports",
+        "tags": [
+          "power-bi"
         ]
       }
     },
@@ -10357,6 +11008,400 @@
         "summary": "Update Organization",
         "tags": [
           "organizations"
+        ]
+      }
+    },
+    "/api/v1/power-bi/connections": {
+      "get": {
+        "operationId": "connections_api_v1_power_bi_connections_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionResponse"
+                  },
+                  "title": "Response Connections Api V1 Power Bi Connections Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Connections",
+        "tags": [
+          "power-bi"
+        ]
+      }
+    },
+    "/api/v1/power-bi/connections/start": {
+      "post": {
+        "operationId": "connect_api_v1_power_bi_connections_start_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionStart"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Connect",
+        "tags": [
+          "power-bi"
+        ]
+      }
+    },
+    "/api/v1/power-bi/connections/{connection_id}": {
+      "delete": {
+        "operationId": "disconnect_api_v1_power_bi_connections__connection_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Disconnect",
+        "tags": [
+          "power-bi"
+        ]
+      }
+    },
+    "/api/v1/power-bi/features": {
+      "get": {
+        "operationId": "features_api_v1_power_bi_features_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PowerBIFeatures"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Features",
+        "tags": [
+          "power-bi"
+        ]
+      }
+    },
+    "/api/v1/power-bi/reports/discover": {
+      "post": {
+        "operationId": "discover_api_v1_power_bi_reports_discover_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportLookup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "title": "Response Discover Api V1 Power Bi Reports Discover Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Discover",
+        "tags": [
+          "power-bi"
+        ]
+      }
+    },
+    "/api/v1/power-bi/reports/resolve": {
+      "post": {
+        "operationId": "resolve_api_v1_power_bi_reports_resolve_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportLookup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportCandidate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resolve",
+        "tags": [
+          "power-bi"
+        ]
+      }
+    },
+    "/api/v1/power-bi/reports/{binding_id}/embed-config": {
+      "post": {
+        "operationId": "embed_api_v1_power_bi_reports__binding_id__embed_config_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "binding_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Binding Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Organization-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbedConfiguration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Embed",
+        "tags": [
+          "power-bi"
         ]
       }
     },

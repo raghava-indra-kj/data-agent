@@ -29,6 +29,7 @@ async def stream_job_events(
     after_sequence: int,
     session_factory: async_sessionmaker[AsyncSession],
     settings: Settings,
+    actor_user_id: uuid.UUID | None = None,
 ) -> AsyncIterator[str]:
     listener = get_listener()
     await listener.start()
@@ -42,6 +43,8 @@ async def stream_job_events(
             # The session is closed before the wait, so an idle SSE client holds no
             # connection from the pool.
             async with session_factory() as session:
+                if actor_user_id is not None:
+                    session.info["actor_user_id"] = actor_user_id
                 events = await JobService(session, settings).list_events(
                     job_id, organization_id, last_sent
                 )

@@ -34,6 +34,13 @@ export function ExecutionTimeline({
 
       <div className="space-y-1.5">
         {entries.map((entry) => {
+          if (entry.kind === 'dax') return <details key={`dax:${entry.record.id}`} className="p-3 border border-[var(--db-border-default)] rounded">
+            <summary>Power BI query · {entry.record.status} · {entry.record.row_count ?? 0} rows</summary>
+            <p>{dataSourceNames[entry.record.data_source_id] ?? 'Power BI'}</p>
+            {entry.record.truncated && <p role="status">This result is truncated.</p>}
+            {entry.record.error_message && <p role="alert">{entry.record.error_message}</p>}
+            <pre aria-label="DAX query" className="overflow-auto"><code>{entry.record.dax_text}</code></pre>
+          </details>;
           if (entry.kind === 'tool') {
             return (
               <ToolExecutionCard

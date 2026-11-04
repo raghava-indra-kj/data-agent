@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { PowerBIConnectionStatus } from '../../power-bi/PowerBIConnectionStatus';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { queryKeys } from '../../api/queryKeys';
@@ -15,6 +16,7 @@ import { deriveConversationTitle } from '../utils/title';
 import { normalizeTableScope } from '../components/table-scope';
 import type { SourceTableScope } from '../components/table-scope';
 import type { ReasoningEffort } from '../reasoning-effort';
+import './ask-page.css';
 
 type PendingConversationState = {
   pendingQuestion: string;
@@ -131,13 +133,16 @@ export function AskPage() {
 
   return (
     <div className="chat-workspace chat-workspace--empty">
-      <main className="chat-empty-state">
+      <main className="chat-empty-state ask-start">
         <div className="chat-empty-state__welcome">
-          <div className="chat-empty-state__logo-badge" aria-hidden="true">
-            <BrandLogo decorative className="chat-empty-state__logo" />
+          <div className="ask-start-greeting">
+            <div className="chat-empty-state__logo-badge" aria-hidden="true">
+              <BrandLogo decorative className="chat-empty-state__logo" />
+            </div>
+            <p className="chat-empty-state__greeting">Hi {firstName}</p>
           </div>
-          <p className="chat-empty-state__greeting">Hi {firstName}</p>
           <h1>What would you like to know about your data?</h1>
+          <p className="ask-start-description">Explore a trend, compare results, or ask a question in your own words.</p>
         </div>
         <div className="w-full">
           {submitError && (
@@ -170,6 +175,10 @@ export function AskPage() {
           disabled={!isPreparing && activeSources.length === 0}
           placement="inline"
         />
+        <div className="ask-start-footer">
+          {activeSources.some((source) => source.kind === 'powerbi' && selectedSourceIds.includes(source.id)) && <PowerBIConnectionStatus />}
+          <span className="ask-start-keyboard-hint">Enter to send · Shift + Enter for a new line</span>
+        </div>
       </main>
     </div>
   );

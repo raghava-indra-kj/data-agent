@@ -20,6 +20,7 @@ from app.knowledge import models as knowledge_models  # noqa: F401
 from app.models import models as model_config_models  # noqa: F401
 from app.organizations import models as org_models  # noqa: F401
 from app.reporting import models as reporting_models  # noqa: F401
+from app.power_bi import models as power_bi_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

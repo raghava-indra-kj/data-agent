@@ -13,6 +13,7 @@ const stream = vi.hoisted(() => ({
     }>(),
     fn: vi.fn(async (options: {
         jobId: string;
+        afterSequence?: number;
     }) => {
         stream.callbacks.set(options.jobId, options as never);
         await new Promise<void>(() => undefined);
@@ -47,7 +48,7 @@ describe('global job manager', () => {
         renderManager(<Probe />);
         await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('1'));
         await waitFor(() => expect(stream.fn).toHaveBeenCalledTimes(1));
-        expect(stream.fn.mock.calls[0][0].afterSequence).toBe(0);
+        expect(stream.fn.mock.calls[0]?.[0].afterSequence).toBe(0);
     });
     it('keeps answer text out of the activity log and preserves it across reconciliation', async () => {
         renderManager(<Probe />);

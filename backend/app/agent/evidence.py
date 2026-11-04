@@ -47,6 +47,19 @@ class ArtifactEvidence:
     payload: dict[str, object]
     valid: bool
     visible: bool = False
+    source_dax_execution_id: uuid.UUID | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DaxResultEvidence:
+    execution_id: uuid.UUID
+    data_source_id: uuid.UUID
+    dax_text: str
+    columns: tuple[str, ...]
+    rows: tuple[tuple[object, ...], ...]
+    truncated: bool
+    preview_truncated: bool
+    context: dict[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +71,7 @@ class EvidenceBundle:
     artifacts: tuple[ArtifactEvidence, ...]
     unavailable_information: bool
     management_results: tuple[dict[str, object], ...] = ()
+    dax_results: tuple[DaxResultEvidence, ...] = ()
 
     @property
     def visible_artifacts(self) -> tuple[ArtifactEvidence, ...]:
@@ -231,6 +245,8 @@ async def collect_evidence(
     repo = AgentExecutionRepository(session)
     tools = await repo.list_tools(job_id)
     sql_items = await repo.list_sql(job_id)
+    dax_items = await repo.list_dax(job_id) if any(item.tool_name == "execute_dax" for item in tools) else []
+    successful_dax = {item.id: item for item in dax_items if item.status == "succeeded"}
     artifact_items = await repo.list_artifacts(job_id)
     tool_sequence = {item.id: item.sequence for item in tools}
     tools_by_id = {item.id: item for item in tools}
@@ -326,10 +342,15 @@ async def collect_evidence(
             if artifact_item.source_sql_execution_id is not None
             else None
         )
+        dax_source_id = getattr(artifact_item, "source_dax_execution_id", None)
+        if dax_source_id is not None:
+            source = successful_dax.get(dax_source_id)
+            source_ok = source is not None
         if artifact_item.kind == "table":
             valid = source_ok and _valid_table_artifact(payload, source)
         elif artifact_item.kind == "chart":
-            valid = source_ok and _valid_chart_artifact(payload, source)
+            chart_payload = {**payload, "source_sql_execution_id": str(dax_source_id)} if dax_source_id else payload
+            valid = source_ok and _valid_chart_artifact(chart_payload, source)
         elif artifact_item.kind == "matrix":
             from app.agent.matrix import validate_stored_matrix
 
@@ -361,6 +382,7 @@ async def collect_evidence(
                 source_sql_execution_id=artifact_item.source_sql_execution_id,
                 payload=payload,
                 valid=valid,
+                source_dax_execution_id=dax_source_id,
             )
         )
 
@@ -371,6 +393,18 @@ async def collect_evidence(
         question=question,
         analyst_notes=analyst_notes,
         sql_results=tuple(sql_results),
+        dax_results=tuple(
+            DaxResultEvidence(
+                execution_id=item.id, data_source_id=item.data_source_id, dax_text=item.dax_text,
+                columns=tuple(item.columns or ()), rows=_payload_rows(table.payload),
+                truncated=item.truncated,
+                preview_truncated=table.payload.get("model_preview_truncated") is True,
+                context=item.context,
+            )
+            for item in successful_dax.values()
+            for table in artifact_items
+            if table.kind == "table" and getattr(table, "source_dax_execution_id", None) == item.id
+        ),
         artifacts=visible_artifacts,
         unavailable_information=notes_report_unavailable(analyst_notes),
         management_results=tuple(
@@ -460,6 +494,7 @@ def validate_evidence(bundle: EvidenceBundle) -> list[str]:
     issues: list[str] = []
     if (
         not bundle.sql_results
+        and not bundle.dax_results
         and not bundle.unavailable_information
         and not bundle.management_results
     ):
@@ -468,6 +503,13 @@ def validate_evidence(bundle: EvidenceBundle) -> list[str]:
             "that the requested information is unavailable."
         )
 
+    for result in bundle.dax_results:
+        if result.truncated or result.preview_truncated:
+            # A complete follow-up from the same model is required; the finalizer also receives
+            # explicit truncation metadata and may not extrapolate from the partial table.
+            if not any(item.data_source_id == result.data_source_id and not item.truncated
+                       and not item.preview_truncated for item in bundle.dax_results):
+                issues.append(f"DAX execution {result.execution_id} is partial. Query a complete aggregate before answering.")
     for artifact in bundle.artifacts:
         if artifact.kind != "text" and not artifact.valid:
             issues.append(
@@ -552,6 +594,15 @@ def render_evidence_context(bundle: EvidenceBundle) -> str:
             )
         sql_blocks.append("\n".join(lines))
     sections.append("VERIFIED SQL EVIDENCE\n" + ("\n\n".join(sql_blocks) or "None."))
+    if bundle.dax_results:
+        sections.append("VERIFIED POWER BI DAX EVIDENCE\n" + json.dumps([
+            {"execution_id": str(item.execution_id), "data_source_id": str(item.data_source_id),
+             "dax": item.dax_text, "columns": item.columns,
+             "rows": item.rows if not item.preview_truncated and len(item.rows) <= 200 else "See table artifact; do not extrapolate.",
+             "truncated": item.truncated, "preview_truncated": item.preview_truncated,
+             "report_context": item.context}
+            for item in bundle.dax_results
+        ], ensure_ascii=False, default=str))
 
     artifact_blocks = []
     for artifact in bundle.visible_artifacts:

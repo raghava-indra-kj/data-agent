@@ -76,6 +76,8 @@ class KnowledgeService:
         requested_by: uuid.UUID,
     ) -> tuple[KnowledgeBase, uuid.UUID]:
         source = await self.require_source(data_source_id, organization_id)
+        if source.kind == "powerbi":
+            raise AppError("POWER_BI_KNOWLEDGE_MANAGED", "Power BI metadata is retrieved privately from Fabric IQ when you ask a question.", 422)
         if source.status == "disabled":
             raise AppError("DATASOURCE_DISABLED", "The datasource is disabled.", 409)
         if source.kind == "duckdb" and source.status != "active":

@@ -9,15 +9,16 @@ const widget: DashboardWidget = { id: 'w1', dashboard_id: 'd1', data_source_id: 
 
 describe('WidgetProvenance', () => {
   it('exposes question, datasource, SQL, originating job and copy action', async () => {
+    const user = userEvent.setup();
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     render(<MemoryRouter><WidgetProvenance widget={widget} dataSourceName="Warehouse"/></MemoryRouter>);
-    await userEvent.setup().click(screen.getByText('View source'));
+    await user.click(screen.getByText('View source'));
     expect(screen.getByText('What is revenue?')).toBeInTheDocument();
     expect(screen.getByText('Warehouse')).toBeInTheDocument();
     expect(screen.getByText('SELECT revenue FROM metrics')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View job' })).toHaveAttribute('href', '/jobs/j1');
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy SQL' }));
+    await user.click(screen.getByRole('button', { name: 'Copy SQL' }));
     expect(writeText).toHaveBeenCalledWith('SELECT revenue FROM metrics');
   });
 });

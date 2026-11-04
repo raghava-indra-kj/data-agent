@@ -13,6 +13,7 @@ from app.agent.matrix import CreateMatrixArgs, MatrixError, MatrixViewState, val
 from app.agent.models import JobArtifact
 from app.agent.repository import AgentExecutionRepository
 from app.agent.schemas import (
+    DaxExecutionResponse,
     JobArtifactResponse,
     JobExecutionTraceResponse,
     ModelExecutionResponse,
@@ -114,7 +115,10 @@ async def get_html_artifact(
     settings: Settings = Depends(get_settings),
 ) -> FileResponse:
     """Serve a shareable POC HTML artifact; UUIDs are the public capability URL."""
-
+    from app.jobs.repository import JobRepository
+    job = await JobRepository(session).get(job_id)
+    if job is not None and job.input.get("power_bi_private"):
+        raise AppError("HTML_ARTIFACT_NOT_FOUND", "HTML artifact not found.", 404)
     artifact = await AgentExecutionRepository(session).get_artifact_for_job(job_id, artifact_id)
     if artifact is None or artifact.kind != "html":
         raise AppError("HTML_ARTIFACT_NOT_FOUND", "HTML artifact not found.", 404)
@@ -155,6 +159,7 @@ async def get_job_execution_trace(
             ToolExecutionResponse.model_validate(item) for item in await repo.list_tools(job_id)
         ],
         sql=[SQLExecutionResponse.model_validate(item) for item in await repo.list_sql(job_id)],
+        dax=[DaxExecutionResponse.model_validate(item) for item in await repo.list_dax(job_id)],
         models=[
             ModelExecutionResponse.model_validate(item) for item in await repo.list_model(job_id)
         ],

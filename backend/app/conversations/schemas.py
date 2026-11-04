@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.conversations.table_scope import SourceTableScope
 from app.core.pagination import CursorPage
 from app.models.reasoning import ReasoningEffort
+from app.power_bi.schemas import ReportContext
 
 
 class ConversationCreate(BaseModel):
@@ -85,6 +86,7 @@ class MessageCreate(BaseModel):
     model_profile_id: uuid.UUID | None = None
     # None uses the model's default effort.
     reasoning_effort: ReasoningEffort | None = None
+    power_bi_context: ReportContext | None = None
 
     @field_validator("content")
     @classmethod

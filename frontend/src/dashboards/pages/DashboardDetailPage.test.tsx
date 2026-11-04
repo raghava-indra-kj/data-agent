@@ -36,7 +36,7 @@ describe('DashboardDetailPage', () => {
   it('edits dashboard metadata and refetches the durable dashboard', async () => {
     server.use(http.patch('http://localhost:12201/api/v1/dashboards/d1', async ({ request }) => {
       const body = await request.json() as { title: string; description: string | null };
-      detail = { ...detail, title: body.title, description: body.description };
+      detail = { ...detail, title: body.title, description: body.description ?? '' };
       return HttpResponse.json(detail);
     }));
     renderPage();

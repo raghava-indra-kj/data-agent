@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { server } from './server';
 
@@ -11,7 +11,8 @@ class ResizeObserverMock {
 
 vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 Element.prototype.getAnimations = () => [];
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+// Start before application modules capture fetch in their API clients.
+server.listen({ onUnhandledRequest: 'error' });
 afterEach(() => {
   cleanup();
   server.resetHandlers();

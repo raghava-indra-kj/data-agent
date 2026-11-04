@@ -185,6 +185,9 @@ export function ChatComposer({
     setModelsOpen(false);
   };
   const hasDataSourceScope = dataSourceSelection === 'hidden' || selectedDataSourceIds.length > 0;
+  const onlyPowerBI = selectedDataSourceIds.length > 0 && selectedDataSourceIds.every(
+    (id) => dataSources.find((source) => source.id === id)?.kind === 'powerbi'
+  );
 
   const toggleSource = (sourceId: string) => {
     if (selectedDataSourceIds.includes(sourceId)) {
@@ -413,7 +416,7 @@ export function ChatComposer({
                 </div>
               ) : null}
 
-              {tableScope && onTableScopeChange && (
+              {tableScope && onTableScopeChange && !onlyPowerBI && (
                 <TableScopeSelector
                   dataSources={dataSources}
                   sourceIds={selectedDataSourceIds}
