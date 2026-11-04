@@ -25,5 +25,5 @@ backend/runtime-data/
 Thumbs.db
 
 # Local scratch workspace
-space/
+space.local/
 samples/
