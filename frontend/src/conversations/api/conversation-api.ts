@@ -1,5 +1,6 @@
 import { apiClient, withAuthRefresh } from '../../api/client';
 import type { components } from '../../api/generated/schema';
+import { getLocalTimeZone } from '../../lib/datetime';
 
 type S = components['schemas'];
 export type Conversation = S['ConversationResponse'];
@@ -61,9 +62,10 @@ export function listMessages(
 }
 
 export function submitMessage(id: string, body: MessageCreate): Promise<MessageAccepted> {
+  const requestBody = { ...body, timezone: body.timezone ?? getLocalTimeZone() };
   return withAuthRefresh(() => apiClient.POST('/api/v1/conversations/{conversation_id}/messages', {
     params: { path: { conversation_id: id } },
-    body,
+    body: requestBody,
   }));
 }
 

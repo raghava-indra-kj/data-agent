@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 import uuid
 from datetime import timedelta
@@ -19,10 +20,16 @@ from app.organizations.models import OrganizationMembership
 from app.power_bi.models import MicrosoftAuthTransaction, MicrosoftConnection
 from app.secrets.service import SecretService
 
+logger = logging.getLogger(__name__)
+
 RESOURCE = "https://analysis.windows.net/powerbi/api"
-SCOPES = [
-    f"{RESOURCE}/{scope}" for scope in ("Item.Read.All", "Item.Execute.All", "Report.Read.All")
-]
+
+
+def scopes(settings: Settings) -> list[str]:
+    permissions = ["Item.Read.All", "Item.Execute.All"]
+    if settings.power_bi_embedding_enabled:
+        permissions.append("Report.Read.All")
+    return [f"{RESOURCE}/{permission}" for permission in permissions]
 
 
 def configured(settings: Settings) -> bool:
@@ -108,7 +115,7 @@ async def begin_connection(
     app = await run_in_threadpool(client, settings)
     flow = await run_in_threadpool(
         app.initiate_auth_code_flow,
-        SCOPES,
+        scopes(settings),
         redirect_uri=settings.power_bi_redirect_uri,
         prompt="select_account",
     )
@@ -164,6 +171,12 @@ async def finish_connection(
             "POWER_BI_SIGNIN_INVALID", "Microsoft sign-in could not be verified.", 400
         ) from exc
     claims = result.get("id_token_claims", {})
+    if "access_token" not in result:
+        logger.warning(
+            "power_bi_token_exchange_failed error=%s description=%s",
+            result.get("error"),
+            result.get("error_description"),
+        )
     if (
         "access_token" not in result
         or claims.get("tid") != settings.power_bi_tenant_id
@@ -277,7 +290,11 @@ async def acquire_token(
             (a for a in app.get_accounts() if a["home_account_id"] == connection.account_id), None
         )
         result = (
-            (await run_in_threadpool(app.acquire_token_silent_with_error, SCOPES, account=account))
+            (
+                await run_in_threadpool(
+                    app.acquire_token_silent_with_error, scopes(settings), account=account
+                )
+            )
             if account
             else None
         )

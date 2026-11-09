@@ -234,6 +234,11 @@ def answers_payload():
 @pytest.mark.asyncio
 async def test_answers_resume_the_paused_job_with_the_original_request(monkeypatch):
     paused = job(WAITING_STATUS)
+    reference = {
+        "reference_at": "2026-11-05T18:29:00+00:00", "timezone": "Asia/Kolkata",
+        "timezone_source": "client",
+    }
+    paused.input["time_context"] = reference
     asked = clarification_message(paused.id)
     paused.input["pause"] = {
         "run": 1, "question_message_id": str(asked.id), "asked_at": utc_now().isoformat(),
@@ -251,6 +256,7 @@ async def test_answers_resume_the_paused_job_with_the_original_request(monkeypat
     assert resume["text"].startswith("Answers to your questions:")
     assert resume["expanded_prompt"].startswith("Show overdue backlog\n\nAnswers")
     assert resume["answer_message_id"] == str(message.id)
+    assert paused.input["time_context"] == reference
 
 
 @pytest.mark.asyncio

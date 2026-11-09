@@ -2956,6 +2956,20 @@
               }
             ],
             "title": "Reasoning Effort"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User's IANA timezone, such as Asia/Kolkata. Omitted values use UTC.",
+            "title": "Timezone"
           }
         },
         "required": [

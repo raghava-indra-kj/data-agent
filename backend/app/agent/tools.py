@@ -26,17 +26,19 @@ from app.agent.models import JobArtifact, SQLExecution, ToolExecution
 from app.agent.repository import AgentExecutionRepository
 from app.agent.serialization import bound_query_result, model_result_preview
 from app.agent.sql_safety import SQLSafetyViolation, validate_read_only_sql
+from app.agent.time_context import RequestTimeContext
 from app.agent.tool_schemas import (
     CreateChartArgs,
     CreateHtmlArtifactArgs,
     ExecuteSQLArgs,
+    GetCurrentTimeArgs,
     ReadKnowledgeIndexArgs,
     ReadTableSchemaArgs,
 )
 from app.conversations.table_scope import SourceTableScope
 from app.core.config import Settings, get_settings
 from app.core.database import get_session_factory
-from app.core.time import utc_now
+from app.core.time import clock_snapshot, utc_now
 from app.data_sources.errors import DataSourceOperationError
 from app.data_sources.service import DataSourceService
 from app.jobs.repository import JobRepository
@@ -91,6 +93,7 @@ class AgentToolContext:
     power_bi_source_ids: frozenset[uuid.UUID] = frozenset()
     power_bi_context: dict[str, object] | None = None
     power_bi_identity: dict[str, str] | None = None
+    time_context: RequestTimeContext | None = None
 
     def selected_scope(self, source_id: uuid.UUID) -> SourceTableScope | None:
         return next((item for item in self.table_scope
@@ -1067,8 +1070,27 @@ async def _mark_sql_failed(
         await session.commit()
 
 
+async def get_current_time(
+    context: AgentToolContext, arguments: dict[str, object], _tool_id: uuid.UUID
+) -> dict[str, object]:
+    parsed = GetCurrentTimeArgs.model_validate(arguments)
+    timezone = parsed.timezone or (context.time_context.timezone if context.time_context else "UTC")
+    return {"ok": True, **clock_snapshot(timezone)}
+
+
 def build_default_tool_registry() -> AgentToolRegistry:
     registry = AgentToolRegistry()
+    registry.register(AgentToolDefinition(
+        name="get_current_time",
+        description=(
+            "Read the application server's current UTC and local date/time, timezone, and UTC "
+            "offset. Defaults to the request timezone; optionally specify another IANA timezone. "
+            "Use for a fresh clock reading or a time-only question; no datasource discovery or "
+            "SQL is needed. Does not change the question's reference time or prove data freshness."
+        ),
+        args_schema=GetCurrentTimeArgs,
+        handler=get_current_time,
+    ))
     registry.register(
         AgentToolDefinition(
             name="read_knowledge_index",

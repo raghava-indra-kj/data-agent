@@ -1,10 +1,19 @@
 import { Button } from '@heroui/react';
-import { Maximize2, Minimize2, RefreshCw, X } from 'lucide-react';
+import { ChartColumn, Fullscreen, Maximize2, Minimize2, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import type { Report, service } from 'powerbi-client';
+import { SingleSelect } from '../components/SingleSelect';
 import { embedConfig, type PowerBIReport, type ReportContext } from './api';
 import { captureReportContext } from './report-context';
+import { TipButton } from './TipButton';
 import './power-bi.css';
+
+const MIN_WIDTH = 35;
+const MAX_WIDTH = 85;
+const SCOPE_OPTIONS = [
+  { value: 'model', label: 'Entire model' },
+  { value: 'report_view', label: 'Page filters & slicers' },
+] as const;
 
 export type ReportCanvasHandle = { capture(): Promise<ReportContext | undefined> };
 
@@ -20,10 +29,12 @@ export function PowerBICanvas({
   const host = useRef<HTMLDivElement>(null);
   const embedded = useRef<Report | null>(null);
   const [ready, setReady] = useState(false);
+  const [hasRendered, setHasRendered] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [width, setWidth] = useState(55);
   const [attempt, setAttempt] = useState(0);
+  const [resizing, setResizing] = useState(false);
   const [scope, setScope] = useState<'model' | 'report_view'>('model');
   const selectionChanged = useRef(false);
   const capture = useCallback(async () => {
@@ -44,13 +55,26 @@ export function PowerBICanvas({
         'Chart selections cannot be captured reliably. Choose Entire model, or reload the report and use page filters and slicers.',
       );
     const context = await captureReportContext(embedded.current, binding.id);
-    if (context.unsupported?.length)
+    if (context.unsupported?.length) {
+      const issues = context.unsupported.slice(0, 5).join('; ');
+      const remainder = context.unsupported.length - 5;
       throw new Error(
-        'This report has filters we cannot capture. Choose Entire model to continue.',
+        `Cannot use the current page filters: ${issues}${remainder > 0 ? `; and ${remainder} more` : ''}. ` +
+        'Adjust the filters or choose Entire model.',
       );
+    }
     return context;
   }, [binding.id, ready, scope]);
   useImperativeHandle(ref, () => ({ capture }), [capture]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const collapse = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setExpanded(false);
+    };
+    window.addEventListener('keydown', collapse);
+    return () => window.removeEventListener('keydown', collapse);
+  }, [expanded]);
 
   useEffect(() => {
     const element = host.current;
@@ -60,8 +84,22 @@ export function PowerBICanvas({
     let timer: ReturnType<typeof setTimeout> | undefined;
     let renewing = false;
     let expiresAt = 0;
+    let loaded = false;
+    let layout: Parameters<Report['updateSettings']>[0] | undefined;
+    let refit: ReturnType<typeof setTimeout> | undefined;
+    // Power BI only re-fits its page on window resize, so a container that changes size
+    // (expand, collapse, splitter drag, sidebar toggle) must re-apply the layout itself.
+    const observer = new ResizeObserver(() => {
+      clearTimeout(refit);
+      refit = setTimeout(() => {
+        if (disposed || !loaded || !layout) return;
+        embedded.current?.updateSettings(layout).catch(() => undefined);
+      }, 120);
+    });
+    observer.observe(element);
     setError(null);
     setReady(false);
+    setHasRendered(false);
     selectionChanged.current = false;
     const fail = () => {
       if (!disposed) {
@@ -72,6 +110,7 @@ export function PowerBICanvas({
           'Unable to load or renew this report. Check Microsoft access, reconnect if needed, then retry.',
         );
         setReady(false);
+        setHasRendered(false);
       }
     };
     const renew = async () => {
@@ -101,6 +140,7 @@ export function PowerBICanvas({
       sdk?.reset(element);
       embedded.current = null;
       setReady(false);
+      setHasRendered(false);
       setError('Microsoft account disconnected. Reconnect before opening this report again.');
     };
     window.addEventListener('power-bi-disconnected', disconnected);
@@ -131,11 +171,24 @@ export function PowerBICanvas({
           settings: {
             panes: { filters: { visible: true }, pageNavigation: { visible: true } },
             background: pbi.models.BackgroundType.Transparent,
+            layoutType: pbi.models.LayoutType.Custom,
+            customLayout: { displayOption: pbi.models.DisplayOption.FitToWidth },
           },
         }) as Report;
+        layout = {
+          layoutType: pbi.models.LayoutType.Custom,
+          customLayout: { displayOption: pbi.models.DisplayOption.FitToWidth },
+        };
         embedded.current = report;
         report.on('loaded', () => {
-          if (!disposed) setReady(true);
+          if (disposed || embedded.current !== report) return;
+          loaded = true;
+          setReady(true);
+        });
+        // SDK APIs are ready at loaded; keep the loading state until visuals are visible.
+        report.on('rendered', () => {
+          if (disposed || embedded.current !== report) return;
+          setHasRendered(true);
         });
         report.on('error', fail);
         report.on('dataSelected', () => {
@@ -151,6 +204,8 @@ export function PowerBICanvas({
     return () => {
       disposed = true;
       clearTimeout(timer);
+      clearTimeout(refit);
+      observer.disconnect();
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('power-bi-disconnected', disconnected);
       embedded.current = null;
@@ -160,8 +215,8 @@ export function PowerBICanvas({
 
   return (
     <aside
-      className={`pbi-canvas ${expanded ? 'is-expanded' : ''}`}
-      style={{ flexBasis: `${expanded ? 72 : width}%` }}
+      className={`pbi-canvas ${expanded ? 'is-expanded' : ''} ${resizing ? 'is-resizing' : ''}`}
+      style={{ flexBasis: `${expanded ? 100 : width}%` }}
       aria-label="Power BI report canvas"
     >
       <div
@@ -169,92 +224,111 @@ export function PowerBICanvas({
         aria-label="Resize report canvas"
         aria-orientation="vertical"
         tabIndex={0}
-        aria-valuemin={35}
-        aria-valuemax={72}
-        aria-valuenow={expanded ? 72 : width}
+        aria-valuemin={MIN_WIDTH}
+        aria-valuemax={MAX_WIDTH}
+        aria-valuenow={width}
         className="pbi-resize"
         onKeyDown={(event) => {
           if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
             event.preventDefault();
             setExpanded(false);
             setWidth((value) =>
-              Math.min(72, Math.max(35, value + (event.key === 'ArrowLeft' ? 5 : -5))),
+              Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, value + (event.key === 'ArrowLeft' ? 5 : -5))),
             );
           }
         }}
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
+          setResizing(true);
         }}
         onPointerMove={(event) => {
           if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
           const rect = event.currentTarget.parentElement?.parentElement?.getBoundingClientRect();
           if (rect) {
             setExpanded(false);
-            setWidth(Math.min(72, Math.max(35, ((rect.right - event.clientX) / rect.width) * 100)));
+            setWidth(
+              Math.min(
+                MAX_WIDTH,
+                Math.max(MIN_WIDTH, ((rect.right - event.clientX) / rect.width) * 100),
+              ),
+            );
           }
         }}
-        onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
+        onPointerUp={(event) => {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+          setResizing(false);
+        }}
+        onPointerCancel={() => setResizing(false)}
       />
       <header className="pbi-canvas-heading">
-        <div>
-          <span className="pbi-mark" aria-hidden="true" />{' '}
+        <div className="pbi-heading-main">
+          <ChartColumn className="pbi-mark" size={18} aria-hidden="true" />
           <strong title={binding.name}>{binding.name}</strong>
         </div>
         <div className="pbi-actions">
-          <Button
-            size="sm"
+          <SingleSelect<'model' | 'report_view'>
+            compact
+            className="pbi-scope-select"
+            label="Power BI question scope"
+            value={scope}
+            onChange={setScope}
+            options={SCOPE_OPTIONS}
+          />
+          <TipButton
             variant="tertiary"
-            isIconOnly
-            aria-label={expanded ? 'Restore report size' : 'Expand report'}
+            label={expanded ? 'Restore report size' : 'Expand report'}
+            aria-pressed={expanded}
             onPress={() => setExpanded((value) => !value)}
           >
             {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          </Button>
-          <Button
-            size="sm"
+          </TipButton>
+          <TipButton
             variant="tertiary"
-            isIconOnly
-            aria-label="Close report"
-            onPress={onClose}
+            label="Full screen"
+            isDisabled={!ready}
+            onPress={() => embedded.current?.fullscreen()}
           >
-            <X size={17} />
-          </Button>
+            <Fullscreen size={16} />
+          </TipButton>
+          <TipButton variant="tertiary" label="Close report" onPress={onClose}>
+            <X size={16} />
+          </TipButton>
         </div>
       </header>
-      <div className="pbi-scope">
-        <label>
-          Question scope{' '}
-          <select
-            aria-label="Power BI question scope"
-            value={scope}
-            onChange={(event) => setScope(event.target.value as typeof scope)}
-          >
-            <option value="model">Entire model</option>
-            <option value="report_view">Page filters &amp; slicers</option>
-          </select>
-        </label>
-        <p>
-          {scope === 'model'
-            ? 'Questions use the model and the scope you describe.'
-            : 'Captured when you send. Chart-specific filters and cross-highlights are excluded.'}
+      {scope === 'report_view' && (
+        <p className="pbi-scope-note">
+          Captured when you send. Chart-specific filters and cross-highlights are excluded.
         </p>
-      </div>
-      {error ? (
-        <div role="alert" className="pbi-canvas-message">
-          <p>{error}</p>
-          <Button variant="secondary" onPress={() => setAttempt((value) => value + 1)}>
-            <RefreshCw size={14} />
-            Retry report
-          </Button>
-        </div>
-      ) : (
-        !ready && (
-          <p role="status" className="pbi-canvas-status">
-            Opening Power BI report…
-          </p>
-        )
       )}
-      <div ref={host} className="pbi-embed-host" hidden={Boolean(error)} />
+      <div className="pbi-canvas-body">
+        <div
+          ref={host}
+          className="pbi-embed-host"
+          hidden={Boolean(error)}
+          aria-busy={!hasRendered && !error}
+          inert={!hasRendered || Boolean(error)}
+        />
+        {error ? (
+          <div role="alert" className="pbi-canvas-message">
+            <p>{error}</p>
+            <Button variant="secondary" onPress={() => setAttempt((value) => value + 1)}>
+              <RefreshCw size={14} />
+              Retry report
+            </Button>
+          </div>
+        ) : !hasRendered ? (
+          <div role="status" aria-live="polite" aria-atomic="true" className="pbi-canvas-loading">
+            <div className="pbi-canvas-loading-content">
+              <div className="pbi-canvas-loading-icon" aria-hidden="true">
+                <span className="pbi-canvas-loading-spinner" />
+                <ChartColumn size={26} strokeWidth={1.8} />
+              </div>
+              <h2>Loading your Power BI report</h2>
+              <p>This may take a little while, especially for larger reports.</p>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </aside>
   );
 }

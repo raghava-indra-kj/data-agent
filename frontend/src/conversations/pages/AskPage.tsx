@@ -123,7 +123,11 @@ export function AskPage() {
 
       navigate(`/conversations/${conversation.id}`, { state });
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Unable to start conversation.');
+      setSubmitError(
+        error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+          ? error.message
+          : 'Unable to start conversation.',
+      );
       setIsSubmitting(false);
     }
   };
@@ -142,7 +146,6 @@ export function AskPage() {
             <p className="chat-empty-state__greeting">Hi {firstName}</p>
           </div>
           <h1>What would you like to know about your data?</h1>
-          <p className="ask-start-description">Explore a trend, compare results, or ask a question in your own words.</p>
         </div>
         <div className="w-full">
           {submitError && (
@@ -164,7 +167,7 @@ export function AskPage() {
           dataSources={activeSources}
           selectedDataSourceIds={selectedSourceIds}
           onDataSourceIdsChange={handleSourceChange}
-          tableScope={normalizeTableScope(selectedSourceIds, tableSelections[sourceScope] ?? [])}
+          tableScope={tableSelections[sourceScope] ?? []}
           onTableScopeChange={handleTableScopeChange}
           profiles={enabledProfiles}
           selectedProfileId={effectiveProfileId}

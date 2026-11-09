@@ -364,13 +364,28 @@ class DataSourceService:
     async def delete(self, *, data_source_id: uuid.UUID, organization_id: uuid.UUID) -> None:
         data_source = await self.require_for_org(data_source_id, organization_id)
         secret_id = data_source.secret_id
-        await self.repo.delete_data_source(data_source)
-        await self.session.flush()
-        if secret_id is not None:
-            secret = await self.secrets.repo.get_for_org(secret_id, organization_id)
-            if secret is not None:
-                await self.session.delete(secret)
-        await self.session.commit()
+        try:
+            await self.repo.delete_data_source(data_source)
+            await self.session.flush()
+            if secret_id is not None:
+                secret = await self.secrets.repo.get_for_org(secret_id, organization_id)
+                if secret is not None:
+                    await self.session.delete(secret)
+            await self.session.commit()
+        except IntegrityError as exc:
+            await self.session.rollback()
+            original = exc.orig
+            sqlstate = getattr(original, "sqlstate", None) or getattr(
+                getattr(original, "__cause__", None), "sqlstate", None
+            )
+            if sqlstate in {"23001", "23503"}:
+                raise AppError(
+                    "DATASOURCE_IN_USE",
+                    "This data source is referenced by existing conversations or history "
+                    "and cannot be deleted.",
+                    409,
+                ) from exc
+            raise
         self.storage.remove_datasource_directory(organization_id, data_source_id)
 
     async def enqueue_test(

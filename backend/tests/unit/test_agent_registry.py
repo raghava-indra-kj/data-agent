@@ -5,6 +5,7 @@ from app.agent.tool_schemas import (
     CreateHtmlArtifactArgs,
     EditSkillArgs,
     ExecuteSQLArgs,
+    GetCurrentTimeArgs,
     ReadKnowledgeIndexArgs,
     ReadSavedContextArgs,
     ReadTableSchemaArgs,
@@ -19,6 +20,7 @@ def test_agent_tool_surface_contains_frontend_chart_tool() -> None:
     tools = build_default_tool_registry().all()
     names = [item.name for item in tools]
     assert names == [
+        "get_current_time",
         "read_knowledge_index",
         "read_table_schema",
         "execute_sql",
@@ -41,6 +43,7 @@ def test_agent_tool_surface_contains_frontend_chart_tool() -> None:
 
 def test_every_agent_tool_argument_has_a_clear_description() -> None:
     schemas = (
+        GetCurrentTimeArgs,
         ReadKnowledgeIndexArgs,
         ReadTableSchemaArgs,
         ReadSavedContextArgs,

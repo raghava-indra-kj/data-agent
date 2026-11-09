@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from dataclasses import replace
 
 from app.agent.artifact_directives import replace_artifact_directives
 from app.agent.checkpoints import current_checkpointer, thread_id
@@ -22,6 +23,7 @@ from app.agent.final_answer import FinalAnswerError, FinalAnswerRuntime
 from app.agent.final_answer_validation import answer_title
 from app.agent.models import JobArtifact
 from app.agent.repository import AgentExecutionRepository
+from app.agent.time_context import RequestTimeContext
 from app.agent.tools import (
     AgentCancelledError,
     AgentLimitError,
@@ -110,14 +112,16 @@ async def _load_evidence(
     job_id: uuid.UUID,
     question: str,
     analysis: AnalysisRunResult,
+    time_context: RequestTimeContext | None = None,
 ) -> EvidenceBundle:
     async with get_session_factory()() as session:
-        return await collect_evidence(
+        evidence = await collect_evidence(
             session,
             job_id=job_id,
             question=question,
             analyst_notes=analysis.notes,
         )
+        return replace(evidence, time_context=time_context)
 
 
 async def run_chat_query_job(job_id: uuid.UUID) -> dict[str, object]:
@@ -150,6 +154,7 @@ async def run_chat_query_job(job_id: uuid.UUID) -> dict[str, object]:
         power_bi_source_ids: set[uuid.UUID] = set()
         if settings.power_bi_enabled or getattr(conversation, "private_to_creator", False):
             from sqlalchemy import select
+
             from app.data_sources.models import DataSource
             from app.power_bi.service import PowerBIService
             session.info["actor_user_id"] = job.requested_by
@@ -192,6 +197,13 @@ async def run_chat_query_job(job_id: uuid.UUID) -> dict[str, object]:
         )
         if user_message is not None:
             messages = messages[:messages.index(user_message) + 1]
+        stored_time = job.input.get("time_context")
+        if stored_time is None and user_message is not None:
+            stored_time = (user_message.metadata_json or {}).get("time_context")
+        time_context = RequestTimeContext.from_metadata(
+            stored_time,
+            fallback_at=(getattr(user_message, "created_at", None) or job.created_at),
+        )
         question = (
             str(user_message.metadata_json.get("expanded_prompt") or user_message.content)
             if user_message
@@ -249,6 +261,7 @@ async def run_chat_query_job(job_id: uuid.UUID) -> dict[str, object]:
         conversation_id=conversation_id,
         allowed_data_source_ids=frozenset(source_ids),
         settings=settings,
+        time_context=time_context,
         table_scope=table_scope,
         default_instructions=default_instructions,
         command_instructions=command_instructions,
@@ -288,7 +301,9 @@ async def run_chat_query_job(job_id: uuid.UUID) -> dict[str, object]:
                 request=analysis.clarification,
                 pause={"run": run} if analysis.paused else None,
             )
-        evidence = await _load_evidence(job_id=job_id, question=question, analysis=analysis)
+        evidence = await _load_evidence(
+            job_id=job_id, question=question, analysis=analysis, time_context=time_context,
+        )
         evidence_issues = validate_evidence(evidence)
 
         retries = 0
@@ -311,7 +326,9 @@ async def run_chat_query_job(job_id: uuid.UUID) -> dict[str, object]:
                     request=analysis.clarification,
                     pause={"run": run} if analysis.paused else None,
                 )
-            evidence = await _load_evidence(job_id=job_id, question=question, analysis=analysis)
+            evidence = await _load_evidence(
+                job_id=job_id, question=question, analysis=analysis, time_context=time_context,
+            )
             evidence_issues = validate_evidence(evidence)
 
         if evidence_issues:
@@ -334,6 +351,7 @@ async def run_chat_query_job(job_id: uuid.UUID) -> dict[str, object]:
             job_id=job_id,
             model=runtime_model,
             evidence=evidence,
+            time_context=time_context,
             default_instructions=default_instructions,
             command_instructions=command_instructions,
             command_name=command_name,

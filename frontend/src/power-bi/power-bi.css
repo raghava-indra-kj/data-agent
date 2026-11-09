@@ -271,7 +271,7 @@
 .pbi-actions {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   flex-shrink: 0;
 }
@@ -426,8 +426,9 @@
   min-width: 300px;
   width: auto;
 }
+/* .chat-main-scroll already pads the column; padding the stream again doubled the gutter. */
 .conversation-with-report:has(.pbi-canvas) .chat-message-stream {
-  padding-inline: 20px;
+  padding-inline: 0;
 }
 .pbi-launcher {
   position: relative;
@@ -469,10 +470,8 @@
   border-bottom: 1px solid var(--db-border-default);
 }
 .pbi-canvas-heading > div:first-child {
-  display: flex;
-  align-items: center;
-  gap: 9px;
   min-width: 0;
+  flex: 1;
 }
 .pbi-canvas-heading strong {
   font-size: 13px;
@@ -481,50 +480,161 @@
   text-overflow: ellipsis;
 }
 .pbi-mark {
-  display: inline-block;
-  width: 13px;
-  height: 17px;
-  background: #edbe22;
-  border-radius: 2px;
-  box-shadow: -5px 3px #edbe2280;
-  margin-right: 3px;
+  flex-shrink: 0;
+  color: #edbe22;
 }
-.pbi-scope {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--db-border-default);
-  font-size: 12px;
-}
-.pbi-scope label {
+.pbi-heading-main {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
-.pbi-scope select {
-  padding: 5px 8px;
-  background: var(--db-surface-raised);
-  border: 1px solid var(--db-border-default);
-  border-radius: 4px;
-  color: inherit;
+.pbi-heading-main strong {
+  min-width: 0;
+  flex: 0 1 auto;
 }
-.pbi-scope p {
-  margin: 5px 0 0;
+/* One 32px control height so the title row, icon buttons and the select line up. */
+.pbi-canvas-heading .button {
+  flex-shrink: 0;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+.pbi-scope-select {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+}
+.pbi-scope-select .select-trigger--compact {
+  height: 32px;
+  min-height: 32px;
+  /* The arrow is absolutely positioned at the end, so reserve room for it. */
+  padding-inline: 10px 30px;
+  font-size: 12px;
+}
+.pbi-scope-note {
+  margin: 0;
+  padding: 6px 18px;
+  border-bottom: 1px solid var(--db-border-default);
   color: var(--db-text-secondary);
+  font-size: 12px;
+}
+.pbi-canvas-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
 }
 .pbi-embed-host {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   width: 100%;
+  overflow: hidden;
 }
 .pbi-embed-host iframe {
+  display: block;
   height: 100%;
   width: 100%;
   border: 0;
 }
-.pbi-canvas-status,
+/* The iframe would otherwise swallow pointer events and stall a splitter drag. */
+.pbi-canvas.is-resizing .pbi-embed-host iframe {
+  pointer-events: none;
+}
 .pbi-canvas-message {
   padding: 20px;
   font-size: 13px;
+}
+.pbi-canvas-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 32px 24px;
+  background: var(--db-surface-raised);
+}
+.pbi-canvas-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(100%, 340px);
+  text-align: center;
+}
+.pbi-canvas-loading-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 22px;
+  border-radius: 50%;
+  background: var(--db-surface-muted);
+  color: #b88a00;
+}
+.pbi-canvas-loading-spinner {
+  position: absolute;
+  inset: -1px;
+  border: 2px solid var(--db-border-default);
+  border-top-color: var(--db-accent, #635bce);
+  border-radius: 50%;
+  animation: pbi-canvas-loading-spin 1.2s linear infinite;
+}
+.pbi-canvas-loading h2 {
+  margin: 0;
+  color: var(--db-text-primary);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.pbi-canvas-loading p {
+  margin: 10px 0 0;
+  color: var(--db-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.pbi-access-loading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 12px;
+}
+.pbi-access-loading-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--db-surface-muted);
+  color: #b88a00;
+}
+.pbi-access-loading strong {
+  color: var(--db-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.pbi-access-loading p {
+  margin: 4px 0 0;
+  color: var(--db-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+@keyframes pbi-canvas-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pbi-canvas-loading-spinner {
+    animation: none;
+  }
 }
 .pbi-resize {
   position: absolute;
@@ -559,4 +669,179 @@
   .pbi-resize {
     display: none;
   }
+}
+
+/* A narrow chat column (report open) must keep bubbles and the composer usable. */
+.conversation-with-report:has(.pbi-canvas) .user-bubble {
+  max-width: 94%;
+}
+.conversation-with-report:has(.pbi-canvas) .chat-composer-toolbar {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.conversation-with-report:has(.pbi-canvas) .chat-composer-chips {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.conversation-with-report:has(.pbi-canvas) .chat-send-btn {
+  margin-left: auto;
+}
+.conversation-with-report:has(.pbi-canvas) .chat-composer-group {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.conversation-with-report:has(.pbi-canvas) .chat-composer-separator {
+  display: none;
+}
+.conversation-with-report:has(.pbi-canvas) .chat-composer-card {
+  min-width: 0;
+  overflow: visible;
+}
+
+/* The chat column's width follows the splitter, so size it with container queries, not the viewport. */
+.conversation-with-report:has(.pbi-canvas) > .chat-workspace {
+  container: pbi-chat / inline-size;
+}
+
+/*
+ * Snug: the column is under ~520px. Drop the page-style gutters and shrink chip chrome.
+ * Selectors repeat the workspace ancestors only to out-rank the page-level layout rules.
+ */
+@container pbi-chat (max-width: 520px) {
+  .conversation-with-report .chat-workspace .conversation-heading {
+    padding: 10px 12px 4px 14px;
+  }
+  .conversation-with-report .chat-workspace:not(.chat-workspace--empty) .chat-main-scroll {
+    --answer-inline-inset: 12px;
+    padding: 8px 10px;
+  }
+  .conversation-with-report .chat-workspace .chat-message-stream {
+    gap: 14px;
+  }
+  .conversation-with-report .chat-workspace .chat-message-row.user {
+    padding-right: 0;
+  }
+  .conversation-with-report .chat-workspace .chat-message-row.user .message-avatar {
+    display: none;
+  }
+  .conversation-with-report .chat-workspace .user-bubble {
+    max-width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  .conversation-with-report .chat-workspace .assistant-card .assistant-markdown {
+    font-size: 14px;
+  }
+  .conversation-with-report .chat-workspace .assistant-card .assistant-markdown h1 {
+    font-size: 19px;
+  }
+  .conversation-with-report .chat-workspace .assistant-card .assistant-markdown h2 {
+    font-size: 17px;
+  }
+  .conversation-with-report .chat-workspace .assistant-card .assistant-markdown h3 {
+    font-size: 15.5px;
+  }
+  .conversation-with-report .chat-workspace .chat-composer-deck:not(.chat-composer-deck--inline) {
+    padding: 6px calc(10px + var(--conversation-scrollbar-width, 0px)) 10px 10px;
+  }
+  .conversation-with-report .chat-workspace .chat-composer-input {
+    padding: 10px 12px 4px;
+  }
+  .conversation-with-report .chat-workspace .chat-composer-textarea {
+    font-size: 14px;
+    min-height: 34px;
+  }
+  /* A wrapped placeholder overflows the one-row textarea and shows a scrollbar. */
+  .conversation-with-report .chat-workspace .chat-composer-textarea::placeholder {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .conversation-with-report .chat-workspace .chat-composer-toolbar {
+    padding: 4px 10px 8px;
+    gap: 6px;
+  }
+  .conversation-with-report .chat-workspace .chat-composer-chips,
+  .conversation-with-report .chat-workspace .chat-composer-group {
+    gap: 4px;
+  }
+  .conversation-with-report .chat-workspace .chat-composer-chip {
+    padding: 0 7px;
+  }
+  /* The trailing chevron is the only svg after the label; the dropdown affordance is implied. */
+  .conversation-with-report .chat-workspace .chat-composer-chip > span + svg {
+    display: none;
+  }
+}
+
+/*
+ * Tight: ~400px and below. Menu chips become icon-only: the label stays for screen readers and
+ * each chip carries a title for sighted users. The table scope chip keeps its text (it is a count).
+ */
+@container pbi-chat (max-width: 400px) {
+  .conversation-with-report .chat-workspace .chat-composer-chip:not(.table-scope-trigger) {
+    width: 30px;
+    justify-content: center;
+    padding: 0;
+  }
+  .conversation-with-report .chat-workspace .chat-composer-chip:not(.table-scope-trigger) > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* An applied template keeps its name: it is a removable token, not a menu button. */
+  .conversation-with-report .chat-workspace .chat-composer-input .chat-composer-chip {
+    width: auto;
+    max-width: 100%;
+    padding: 0 7px;
+  }
+  .conversation-with-report .chat-workspace .chat-composer-input .chat-composer-chip > span {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: hidden;
+    clip-path: none;
+    text-overflow: ellipsis;
+  }
+  .conversation-with-report .chat-workspace .chat-send-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Focus mode: the report takes the whole content area; the chat column is hidden, not unmounted. */
+.pbi-canvas.is-expanded {
+  min-width: 0;
+  border-left: 0;
+}
+.pbi-canvas.is-expanded .pbi-resize {
+  display: none;
+}
+.conversation-with-report:has(.pbi-canvas.is-expanded) > .chat-workspace {
+  display: none;
+}
+@media (max-width: 900px) {
+  .pbi-canvas.is-expanded {
+    flex: 1 1 auto !important;
+    min-height: 85vh;
+  }
+}
+
+/* HeroUI buttons default to an arrow cursor; icon controls here should read as clickable. */
+.pbi-canvas-heading .button,
+.pbi-launcher .button,
+.pbi-scope-select .select__trigger,
+.pbi-resize {
+  cursor: pointer;
+}
+.pbi-canvas-heading .button[data-disabled='true'],
+.pbi-canvas-heading .button:disabled,
+.pbi-launcher .button:disabled {
+  cursor: not-allowed;
+}
+.pbi-resize {
+  cursor: col-resize;
 }

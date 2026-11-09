@@ -11,6 +11,7 @@ import httpx
 
 from app.agent.models import ModelExecution
 from app.agent.repository import AgentExecutionRepository, model_usage_event
+from app.agent.time_context import render_time_context
 from app.agent.tools import (
     AgentLimitError,
     AgentToolContext,
@@ -698,6 +699,7 @@ class DeepAgentRuntime:
         if context.power_bi_source_ids:
             from app.power_bi.tools import power_bi_prompt
             runtime_prompt += power_bi_prompt(context)
+        runtime_prompt += "\n\n" + render_time_context(context.time_context)
         runnable = self.factory.create(
             model=model,
             tools=bindings,

@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.checkpoints import delete_job_checkpoints
 from app.agent.clarification import ClarificationAnswers, answers_text, validate_answers
+from app.agent.time_context import RequestTimeContext
 from app.conversations.models import Conversation, ConversationDataSource, Message
-from app.conversations.titles import default_conversation_title
 from app.conversations.repository import ConversationRepository
 from app.conversations.schemas import (
     AnswerReviewCounts,
@@ -24,6 +24,7 @@ from app.conversations.schemas import (
     MessageVerificationUpdate,
 )
 from app.conversations.table_scope import SourceTableScope, resolve_table_scope
+from app.conversations.titles import default_conversation_title
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.pagination import CursorCodec, split_page
@@ -215,6 +216,10 @@ class ConversationService:
             "answers_message_id": str(asked.id),
             "clarification_round": int(original_metadata.get("clarification_round") or 0) + 1,
             "expanded_prompt": f"{original_request}\n\n{content}".strip(),
+            "time_context": RequestTimeContext.from_metadata(
+                original_metadata.get("time_context"),
+                fallback_at=getattr(original, "created_at", None) or utc_now(),
+            ).to_metadata(),
         }
         for key in ("instruction_id", "command", "raw_prompt"):
             if key in original_metadata:
@@ -467,12 +472,22 @@ class ConversationService:
                 metadata["expanded_prompt"] = expanded
 
         metadata.update(extra_metadata or {})
+        received_at = utc_now()
+        time_context = (
+            RequestTimeContext.from_metadata(metadata["time_context"], fallback_at=received_at)
+            if "time_context" in metadata
+            else RequestTimeContext(
+                received_at, payload.timezone or "UTC",
+                "client" if payload.timezone is not None else "default",
+            )
+        )
+        metadata["time_context"] = time_context.to_metadata()
         message = Message(
             conversation_id=conversation.id,
             role="user",
             content=payload.content,
             metadata_json=metadata,
-            created_at=utc_now(),
+            created_at=received_at,
         )
         self.repo.add_message(message)
         if conversation.title is None:
@@ -488,6 +503,7 @@ class ConversationService:
                 "user_message_id": str(message.id),
                 "model_profile_id": str(profile_id),
                 "reasoning_effort": effort,
+                "time_context": time_context.to_metadata(),
                 "table_scope": table_scope,
                 **({"power_bi_private": True} if getattr(conversation, "private_to_creator", False) else {}),
                 **({"power_bi_identity": conversation.power_bi_identity} if getattr(conversation, "private_to_creator", False) else {}),

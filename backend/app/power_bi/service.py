@@ -67,6 +67,73 @@ def identity(payload: dict[str, object], keys: tuple[str, ...]) -> str | None:
     return None
 
 
+def report_model(payload: dict[str, object], report_id: str) -> tuple[str, str]:
+    """Read the model from the explicitly requested SemanticModel projection.
+
+    Fabric IQ may return the projection as JSON prefixed with its query label, while
+    structuredContent can contain only an artifact citation. Never treat the citation's
+    report ID, or an arbitrary nested visual ID, as the semantic model ID.
+    """
+    models: set[str] = set()
+    report_names: set[str] = set()
+    for value in content_values(payload):
+        if isinstance(value, dict):
+            citation = value.get("artifact_citation")
+            if isinstance(citation, dict):
+                citation_id = guid(citation.get("ArtifactId"))
+                if citation_id and citation_id != report_id:
+                    raise AppError(
+                        "POWER_BI_IDENTITY_AMBIGUOUS",
+                        "Fabric IQ returned metadata for a different report.",
+                        422,
+                    )
+                if citation_id == report_id and isinstance(citation.get("Name"), str):
+                    report_names.add(citation["Name"])
+            projected = value.get("SemanticModel", value.get("semanticModel"))
+            if projected is None and "Id" in value and "artifact_citation" not in value:
+                projected = value
+        elif isinstance(value, str):
+            match = re.fullmatch(
+                r"\s*---\s*Query\s+1:\s*SemanticModel\s*---\s*(\{.*\})\s*",
+                value,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+            if not match:
+                continue
+            try:
+                projected = json.loads(match.group(1))
+            except ValueError as exc:
+                raise AppError(
+                    "POWER_BI_MODEL_UNAVAILABLE",
+                    "Fabric IQ could not identify this report's semantic model.",
+                    422,
+                ) from exc
+        else:
+            continue
+        if isinstance(projected, dict):
+            candidate = guid(projected.get("Id") or projected.get("id"))
+        else:
+            candidate = guid(projected)
+        if candidate:
+            models.add(candidate)
+    if len(models) != 1:
+        raise AppError(
+            "POWER_BI_MODEL_UNAVAILABLE",
+            "Fabric IQ could not identify one semantic model for this report.",
+            422,
+        )
+    if len(report_names) > 1:
+        raise AppError("POWER_BI_IDENTITY_AMBIGUOUS", "Report metadata is ambiguous.", 422)
+    return models.pop(), next(iter(report_names), "Power BI report")
+
+
+async def fabric_report_model(client, report_id: str) -> tuple[str, str]:
+    metadata = await client.call(
+        "GetReportMetadata", {"reportObjectId": report_id, "queries": ["SemanticModel"]}
+    )
+    return report_model(metadata, report_id)
+
+
 async def rest_report(token: str, report_id: str, workspace_id: str | None) -> dict[str, object]:
     prefix = f"groups/{uuid.UUID(workspace_id)}/" if workspace_id else ""
     url = f"https://api.powerbi.com/v1.0/myorg/{prefix}reports/{uuid.UUID(report_id)}"
@@ -140,26 +207,25 @@ class PowerBIService:
         token, _, _ = await self.token()
         async with fabric_client(self.settings, token) as client:
             resolved = await client.call("ResolveFabricItem", {"fabricItemId": url})
-            report_id = identity(resolved, ("fabricItemId", "reportObjectId", "reportId", "id"))
+            report_id = identity(resolved, ("fabricItemId",))
             if report_id is None:
                 raise AppError(
                     "POWER_BI_REPORT_UNSUPPORTED", "Fabric IQ could not resolve this report.", 422
                 )
-            metadata = await client.call("GetReportMetadata", {"reportObjectId": report_id})
-        workspace_id = identity(resolved, ("workspaceId",)) or identity(
-            metadata, ("workspaceId", "groupId")
-        )
+            model_id, name = await fabric_report_model(client, report_id)
+            # Verify that the current user can read the model before creating a binding.
+            await client.call("GetSemanticModelSchema", {"artifactId": model_id})
+        workspace_id = identity(resolved, ("workspaceId",))
         # Ordinary browser URLs identify the location even if MCP omits it for My Workspace.
         if not workspace_id:
             match = re.search(r"/groups/([0-9a-fA-F-]{36})/", urlparse(url).path)
             workspace_id = guid(match[1]) if match else None
-        report = await rest_report(token, report_id, workspace_id)
         canonical = f"https://app.powerbi.com/groups/{workspace_id or 'me'}/reports/{report_id}"
         return ReportCandidate(
             report_id=report_id,
             workspace_id=workspace_id,
-            semantic_model_id=str(report["datasetId"]),
-            name=str(report.get("name") or "Power BI report"),
+            semantic_model_id=model_id,
+            name=name,
             web_url=canonical,
         )
 
@@ -292,13 +358,20 @@ class PowerBIService:
                 .where(
                     DataSource.id == source_id,
                     DataSource.organization_id == self.organization_id,
-                    PowerBISource.tenant_id == self.settings.power_bi_tenant_id,
+                    PowerBISource.organization_id == self.organization_id,
                 )
             )
         ).first()
         if row is None or row[0].status != "active":
             raise AppError(
                 "POWER_BI_SOURCE_UNAVAILABLE", "The Power BI source is unavailable.", 404
+            )
+        if row[1].tenant_id != self.settings.power_bi_tenant_id:
+            raise AppError(
+                "POWER_BI_TENANT_MISMATCH",
+                "This Power BI source belongs to a different Microsoft tenant. "
+                "Select a source connected to your current tenant or add the report again.",
+                409,
             )
         return row[0], row[1]
 
@@ -327,14 +400,15 @@ class PowerBIService:
 
     async def validate_report(self, report: PowerBIReport, token: str) -> dict[str, object]:
         _, source = await self.source(report.data_source_id)
-        current = await rest_report(token, report.report_id, report.workspace_id)
-        if guid(current.get("datasetId")) != source.semantic_model_id:
+        async with fabric_client(self.settings, token) as client:
+            model_id, _ = await fabric_report_model(client, report.report_id)
+        if model_id != source.semantic_model_id:
             raise AppError(
                 "POWER_BI_REPORT_REBOUND",
                 "This report's model has changed. An administrator must review the source binding.",
                 409,
             )
-        return current
+        return {"datasetId": model_id}
 
     async def report(self, binding_id: uuid.UUID) -> PowerBIReport:
         report = await self.session.scalar(
@@ -352,7 +426,15 @@ class PowerBIService:
         if not self.settings.power_bi_embedding_enabled or not report.embedding_enabled:
             raise AppError("POWER_BI_EMBED_DISABLED", "Embedding is disabled for this report.", 409)
         token, expires, _ = await self.token()
-        current = await self.validate_report(report, token)
+        await self.validate_report(report, token)
+        current = await rest_report(token, report.report_id, report.workspace_id)
+        _, source = await self.source(report.data_source_id)
+        if guid(current.get("datasetId")) != source.semantic_model_id:
+            raise AppError(
+                "POWER_BI_REPORT_REBOUND",
+                "This report's model has changed. An administrator must review the source binding.",
+                409,
+            )
         url = str(current.get("embedUrl", ""))
         parsed = urlparse(url)
         if (

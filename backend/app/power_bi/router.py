@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from urllib.parse import urlparse
 
@@ -31,6 +32,8 @@ from app.power_bi.schemas import (
 )
 from app.power_bi.service import PowerBIService
 from app.secrets.service import SecretService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["power-bi"])
 COOKIE = "power_bi_signin"
@@ -84,8 +87,15 @@ async def callback(
     except AppError as exc:
         await session.rollback()
         status = exc.code
+        logger.warning(
+            "power_bi_callback_rejected code=%s microsoft_error=%s description=%s",
+            exc.code,
+            request.query_params.get("error"),
+            request.query_params.get("error_description"),
+        )
     except Exception:
         await session.rollback()
+        logger.exception("power_bi_callback_failed")
         status = "POWER_BI_SIGNIN_FAILED"
     # Only a static configured origin/path and a server-owned code are returned, never tokens.
     response = RedirectResponse(

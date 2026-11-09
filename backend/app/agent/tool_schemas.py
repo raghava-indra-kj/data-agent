@@ -3,7 +3,22 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.core.time import validate_timezone
+
+
+class GetCurrentTimeArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    timezone: str | None = Field(
+        default=None, min_length=1, max_length=100,
+        description="Optional IANA timezone, e.g. Asia/Kolkata; defaults to the request timezone.",
+    )
+
+    @field_validator("timezone")
+    @classmethod
+    def valid_timezone(cls, value: str | None) -> str | None:
+        return validate_timezone(value) if value is not None else None
 
 
 class ReadKnowledgeIndexArgs(BaseModel):

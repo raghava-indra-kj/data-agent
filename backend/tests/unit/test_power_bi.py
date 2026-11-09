@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import base64
+import json
 import uuid
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -19,11 +21,12 @@ from app.conversations.service import ConversationService
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.jobs.repository import JobRepository
-from app.power_bi.auth import require_enabled
+from app.power_bi import service as power_bi_service
+from app.power_bi.auth import require_enabled, scopes
 from app.power_bi.context import filter_expression, scoped_dax
 from app.power_bi.mcp_client import FabricIQClient, query_result
 from app.power_bi.schemas import ReportContext
-from app.power_bi.service import identity, report_url
+from app.power_bi.service import PowerBIService, identity, report_model, report_url
 from app.power_bi.tools import DaxChartArgs, with_power_bi_tools
 
 
@@ -128,6 +131,130 @@ def test_resolving_ambiguous_identities_fails_closed():
     }
     with pytest.raises(AppError, match="multiple identities"):
         identity(payload, ("fabricItemId",))
+
+
+def projection(report_id, model_id):
+    return {
+        "structuredContent": {"artifact_citation": {"ArtifactId": report_id, "Name": "Backlog"}},
+        "content": [
+            {
+                "type": "text",
+                "text": '--- Query 1: SemanticModel ---\n' + json.dumps({"Id": model_id}),
+            }
+        ],
+    }
+
+
+def test_report_model_uses_projection_not_report_citation():
+    report_id, model_id = str(uuid.uuid4()), str(uuid.uuid4())
+    assert report_model(projection(report_id, model_id), report_id) == (model_id, "Backlog")
+    for payload in [
+        {"structuredContent": {"artifact_citation": {"ArtifactId": report_id}}},
+        projection(str(uuid.uuid4()), model_id),
+        {
+            "structuredContent": {"SemanticModel": {"Id": model_id}},
+            "content": [
+                {
+                    "type": "text",
+                    "text": '--- Query 1: SemanticModel ---\n'
+                    + json.dumps({"Id": str(uuid.uuid4())}),
+                }
+            ],
+        },
+    ]:
+        with pytest.raises(AppError):
+            report_model(payload, report_id)
+
+
+def test_report_scope_only_requested_when_embedding_enabled():
+    settings = Settings(_env_file=None, power_bi_embedding_enabled=False)
+    assert all(not scope.endswith("/Report.Read.All") for scope in scopes(settings))
+    settings.power_bi_embedding_enabled = True
+    assert any(scope.endswith("/Report.Read.All") for scope in scopes(settings))
+
+
+@pytest.mark.asyncio
+async def test_resolve_verifies_model_with_fabric_without_rest(monkeypatch):
+    report_id, model_id, workspace_id = (str(uuid.uuid4()) for _ in range(3))
+    calls = []
+
+    class Fabric:
+        async def call(self, name, arguments):
+            calls.append((name, arguments))
+            if name == "ResolveFabricItem":
+                return {
+                    "structuredContent": {"fabricItemId": report_id, "workspaceId": workspace_id}
+                }
+            if name == "GetReportMetadata":
+                assert arguments == {
+                    "reportObjectId": report_id,
+                    "queries": ["SemanticModel"],
+                }
+                return projection(report_id, model_id)
+            assert name == "GetSemanticModelSchema" and arguments == {"artifactId": model_id}
+            return {"content": []}
+
+    @asynccontextmanager
+    async def fake_client(*_args):
+        yield Fabric()
+
+    rest = AsyncMock(side_effect=AssertionError("REST must not be called"))
+    monkeypatch.setattr(power_bi_service, "fabric_client", fake_client)
+    monkeypatch.setattr(power_bi_service, "rest_report", rest)
+    api = PowerBIService(AsyncMock(), Settings(_env_file=None), uuid.uuid4(), uuid.uuid4())
+    api.token = AsyncMock(return_value=("token", 60, uuid.uuid4()))
+    result = await api.resolve(f"https://app.powerbi.com/groups/{workspace_id}/reports/{report_id}")
+    assert (result.report_id, result.semantic_model_id, result.name) == (
+        report_id, model_id, "Backlog"
+    )
+    assert [name for name, _ in calls] == [
+        "ResolveFabricItem", "GetReportMetadata", "GetSemanticModelSchema"
+    ]
+    rest.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_report_validation_rejects_changed_model_without_rest(monkeypatch):
+    report_id, original_model, new_model = (str(uuid.uuid4()) for _ in range(3))
+
+    class Fabric:
+        async def call(self, name, arguments):
+            assert name == "GetReportMetadata"
+            return projection(report_id, new_model)
+
+    @asynccontextmanager
+    async def fake_client(*_args):
+        yield Fabric()
+
+    monkeypatch.setattr(power_bi_service, "fabric_client", fake_client)
+    api = PowerBIService(AsyncMock(), Settings(_env_file=None), uuid.uuid4(), uuid.uuid4())
+    api.source = AsyncMock(return_value=(None, SimpleNamespace(semantic_model_id=original_model)))
+    report = SimpleNamespace(data_source_id=uuid.uuid4(), report_id=report_id)
+    with pytest.raises(AppError) as error:
+        await api.validate_report(report, "token")
+    assert error.value.code == "POWER_BI_REPORT_REBOUND"
+    api.source = AsyncMock(return_value=(None, SimpleNamespace(semantic_model_id=new_model)))
+    assert await api.validate_report(report, "token") == {"datasetId": new_model}
+
+
+@pytest.mark.asyncio
+async def test_source_reports_tenant_mismatch_without_accepting_it(monkeypatch):
+    monkeypatch.setattr(power_bi_service, "require_enabled", lambda _settings: None)
+    tenant = str(uuid.uuid4())
+    settings = Settings(_env_file=None, power_bi_tenant_id=tenant)
+    session = AsyncMock()
+    source = SimpleNamespace(status="active")
+    details = SimpleNamespace(tenant_id=str(uuid.uuid4()))
+    session.execute.return_value = SimpleNamespace(first=lambda: (source, details))
+    api = PowerBIService(session, settings, uuid.uuid4(), uuid.uuid4())
+
+    with pytest.raises(AppError) as error:
+        await api.source(uuid.uuid4())
+    assert error.value.code == "POWER_BI_TENANT_MISMATCH"
+    assert "different Microsoft tenant" in error.value.message
+
+    details.tenant_id = tenant
+    assert await api.source(uuid.uuid4()) == (source, details)
 
 
 def test_default_installation_does_not_require_microsoft_configuration():

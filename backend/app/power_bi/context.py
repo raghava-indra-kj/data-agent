@@ -31,6 +31,32 @@ def literal(value: object) -> str:
 
 def filter_expression(item: dict[str, object]) -> str | None:
     target = item.get("target")
+    if item.get("filterType") == 9:
+        # Power BI can expose a one-column categorical slicer as a hierarchy.
+        # Only explicit selected leaves are equivalent to an In filter; parent
+        # selections, key-based targets and exclusions need different semantics.
+        nodes = item.get("hierarchyData")
+        if (
+            not isinstance(target, list)
+            or len(target) != 1
+            or not isinstance(nodes, list)
+            or not 1 <= len(nodes) <= 1000
+        ):
+            raise _invalid()
+        values = []
+        for node in nodes:
+            if (
+                not isinstance(node, dict)
+                or set(node) - {"operator", "value", "children"}
+                or node.get("operator") != "Selected"
+                or "value" not in node
+                or ("children" in node and node["children"] != [])
+            ):
+                raise _invalid()
+            values.append(node["value"])
+        return filter_expression(
+            {"filterType": 1, "target": target[0], "operator": "In", "values": values}
+        )
     if not isinstance(target, dict) or set(target) != {"table", "column"}:
         raise _invalid()
     table, column = target.get("table"), target.get("column")
@@ -50,12 +76,11 @@ def filter_expression(item: dict[str, object]) -> str | None:
     if item.get("filterType") == 0:
         conditions = item.get("conditions")
         logic = item.get("logicalOperator", "And")
-        if (
-            logic not in {"And", "Or"}
-            or not isinstance(conditions, list)
-            or not 1 <= len(conditions) <= 2
-        ):
+        if logic not in {"And", "Or"} or not isinstance(conditions, list) or len(conditions) > 2:
             raise _invalid()
+        # An untouched advanced filter can be returned as conditions: [] (All).
+        if not conditions:
+            return None
         ops = {
             "Is": "=",
             "IsNot": "<>",

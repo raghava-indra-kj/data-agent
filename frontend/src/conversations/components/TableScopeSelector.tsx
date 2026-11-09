@@ -19,14 +19,16 @@ type Props = {
   disabled?: boolean;
 };
 
-function SourceTables({
+export function SourceTables({
   source,
   scope,
   onChange,
+  compact = false,
 }: {
   source: { id: string; name: string };
   scope: SourceTableScope;
   onChange(scope: SourceTableScope): void;
+  compact?: boolean;
 }) {
   const { activeOrganization } = useOrganization();
   const client = useQueryClient();
@@ -61,13 +63,20 @@ function SourceTables({
     onChange({ ...scope, mode: 'selected', tables: next });
   };
   return (
-    <section className="table-scope-source" aria-label={source.name}>
+    <section
+      className={`table-scope-source ${compact ? 'table-scope-source--compact' : ''}`}
+      aria-label={source.name}
+    >
       <div className="table-scope-source-header">
         <h3 title={source.name}>
           <Database size={14} aria-hidden="true" />
           <span>{source.name}</span>
         </h3>
-        <div className="table-scope-modes" role="radiogroup" aria-label={`Tables for ${source.name}`}>
+        <div
+          className="table-scope-modes"
+          role="radiogroup"
+          aria-label={`Tables for ${source.name}`}
+        >
           <label className={scope.mode === 'all' ? 'is-active' : ''}>
             <input
               type="radio"
@@ -333,7 +342,15 @@ export function TableScopeSelector({
               )}
               {activeSource &&
                 (() => {
-                  if (dataSources.find((source) => source.id === activeSource.id)?.kind === 'powerbi') return <p className="p-4 text-sm">Power BI uses your authorized semantic model. Open the report to choose page filters and slicers for a question.</p>;
+                  if (
+                    dataSources.find((source) => source.id === activeSource.id)?.kind === 'powerbi'
+                  )
+                    return (
+                      <p className="p-4 text-sm">
+                        Power BI uses your authorized semantic model. Open the report to choose page
+                        filters and slicers for a question.
+                      </p>
+                    );
                   const item = displayedScope.find(
                     (entry) => entry.data_source_id === activeSource.id,
                   ) ?? { data_source_id: activeSource.id, mode: 'all' as const, tables: [] };

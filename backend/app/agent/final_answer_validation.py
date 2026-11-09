@@ -9,6 +9,7 @@ from app.agent.artifact_directives import (
     canonical_artifact_id,
 )
 from app.agent.evidence import EvidenceBundle
+from app.agent.time_context import is_time_only_question
 
 UUID_PATTERN = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b"
@@ -192,6 +193,15 @@ def _numbers(value: str, *, markdown: bool = False) -> set[str]:
 
 def grounded_numbers(bundle: EvidenceBundle) -> set[str]:
     allowed = _numbers(bundle.question) | _numbers(bundle.analyst_notes)
+    # Clock numbers are evidence only for a clock-only request. They must not incidentally
+    # ground a business metric that happens to match a date component or UTC offset.
+    if is_time_only_question(bundle.question):
+        for reading in bundle.clock_results:
+            allowed |= _numbers(str(reading))
+        if bundle.current_time:
+            allowed |= _numbers(str(bundle.current_time))
+        if bundle.time_context:
+            allowed |= _numbers(str(bundle.time_context.to_metadata()))
     for result in bundle.sql_results:
         allowed |= _numbers(result.sql_text)
         for row in result.rows:

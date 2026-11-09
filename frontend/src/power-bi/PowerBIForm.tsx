@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { DataSource } from '../api/types';
-import { ConnectionPanel } from './ConnectionPanel';
+import { ConnectionPanel, usePowerBIFeatures } from './ConnectionPanel';
 import * as api from './api';
 
 export function PowerBIForm({
@@ -22,6 +22,7 @@ export function PowerBIForm({
   const [name, setName] = useState('');
   const [search, setSearch] = useState('');
   const [embed, setEmbed] = useState(true);
+  const flags = usePowerBIFeatures();
   const reportLink = useRef<HTMLInputElement>(null);
   const lookup = useMutation({
     mutationFn: api.resolveReport,
@@ -29,7 +30,12 @@ export function PowerBIForm({
   });
   const discovery = useMutation({ mutationFn: api.discoverReports });
   const save = useMutation({
-    mutationFn: () => api.createSource({ name, report_url: url, embedding_enabled: embed }),
+    mutationFn: () =>
+      api.createSource({
+        name,
+        report_url: url,
+        embedding_enabled: Boolean(flags.data?.embedding_enabled && embed),
+      }),
     onSuccess: onCreated,
   });
   const error = lookup.error || discovery.error || save.error;
@@ -190,14 +196,16 @@ export function PowerBIForm({
             <Label>Data source name</Label>
             <Input maxLength={180} />
           </TextField>
-          <label className="pbi-checkbox">
-            <input
-              type="checkbox"
-              checked={embed}
-              onChange={(event) => setEmbed(event.target.checked)}
-            />
-            Allow users to open this report alongside a conversation
-          </label>
+          {flags.data?.embedding_enabled && (
+            <label className="pbi-checkbox">
+              <input
+                type="checkbox"
+                checked={embed}
+                onChange={(event) => setEmbed(event.target.checked)}
+              />
+              Allow users to open this report alongside a conversation
+            </label>
+          )}
           <Button type="submit" isPending={save.isPending} isDisabled={!name.trim()}>
             Add Power BI source
           </Button>

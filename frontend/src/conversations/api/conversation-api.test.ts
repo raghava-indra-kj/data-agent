@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authSession } from '../../auth/session-storage';
 import { setApiOrganizationId } from '../../organizations/organization-store';
 import { server } from '../../test/server';
+import * as datetime from '../../lib/datetime';
 import {
   createConversation,
   listConversations,
@@ -57,11 +58,21 @@ describe('conversation API', () => {
   });
 
   it('submits a question as an immediate durable message/job pair', async () => {
+    const timezone = vi.spyOn(datetime, 'getLocalTimeZone').mockReturnValue('Asia/Kolkata');
     server.use(http.post('http://localhost:12201/api/v1/conversations/c1/messages', async ({ request }) => {
-      expect(await request.json()).toEqual({ content: 'Why did revenue fall?', model_profile_id: null });
+      expect(await request.json()).toEqual({ content: 'Why did revenue fall?', model_profile_id: null, timezone: 'Asia/Kolkata' });
       return HttpResponse.json({ message_id: 'm1', job_id: 'j1' }, { status: 202 });
     }));
     await expect(submitMessage('c1', { content: 'Why did revenue fall?', model_profile_id: null })).resolves.toEqual({ message_id: 'm1', job_id: 'j1' });
+    timezone.mockRestore();
+  });
+
+  it('preserves an explicitly supplied timezone', async () => {
+    server.use(http.post('http://localhost:12201/api/v1/conversations/c1/messages', async ({ request }) => {
+      expect(await request.json()).toEqual({ content: 'What time is it?', timezone: 'America/New_York' });
+      return HttpResponse.json({ message_id: 'm1', job_id: 'j1' }, { status: 202 });
+    }));
+    await submitMessage('c1', { content: 'What time is it?', timezone: 'America/New_York' });
   });
 
   it('loads durable messages independently of browser job state', async () => {

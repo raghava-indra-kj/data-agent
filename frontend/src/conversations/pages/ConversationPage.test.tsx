@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { server } from '../../test/server';
 import { queryKeys } from '../../api/queryKeys';
 import type { ManagedJob } from '../../jobs/types';
+import { getLocalTimeZone } from '../../lib/datetime';
 
 const manager = vi.hoisted(() => ({
   jobs: [] as ManagedJob[],
@@ -357,6 +358,7 @@ describe('durable conversation workspace', () => {
       content: 'Compare customers?',
       model_profile_id: null,
       reasoning_effort: null,
+      timezone: getLocalTimeZone(),
     });
     expect(input).toHaveValue('My draft');
   });
@@ -661,6 +663,7 @@ describe('durable conversation workspace', () => {
           content: 'Why did revenue fall?',
           model_profile_id: null,
           reasoning_effort: 'high',
+          timezone: getLocalTimeZone(),
         });
         return HttpResponse.json({ message_id: 'm-durable', job_id: 'j-chat' }, { status: 202 });
       }),
@@ -744,10 +747,11 @@ describe('durable conversation workspace', () => {
     );
     renderPage();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Tables: All tables' }));
+    await user.click(await screen.findByRole('button', { name: 'Data scope' }));
+    await user.click(await screen.findByRole('radio', { name: 'Choose tables' }));
     await user.click(await screen.findByRole('checkbox', { name: /orders/ }));
-    await user.click(screen.getByRole('button', { name: 'Apply' }));
-    expect(await screen.findByRole('button', { name: 'Tables: orders' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(await screen.findByRole('button', { name: 'Data scope' })).toBeInTheDocument();
     expect(saved).toEqual([
       {
         table_scope: [
@@ -791,6 +795,7 @@ describe('durable conversation workspace', () => {
           content: 'Now compare enterprise customers.',
           model_profile_id: null,
           reasoning_effort: null,
+          timezone: getLocalTimeZone(),
         });
         return HttpResponse.json({ message_id: 'm-follow', job_id: 'j-follow' }, { status: 202 });
       }),

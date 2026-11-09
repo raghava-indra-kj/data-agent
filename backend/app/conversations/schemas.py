@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.conversations.table_scope import SourceTableScope
 from app.core.pagination import CursorPage
+from app.core.time import validate_timezone
 from app.models.reasoning import ReasoningEffort
 from app.power_bi.schemas import ReportContext
 
@@ -87,6 +88,15 @@ class MessageCreate(BaseModel):
     # None uses the model's default effort.
     reasoning_effort: ReasoningEffort | None = None
     power_bi_context: ReportContext | None = None
+    timezone: str | None = Field(
+        default=None, min_length=1, max_length=100,
+        description="User's IANA timezone, such as Asia/Kolkata. Omitted values use UTC.",
+    )
+
+    @field_validator("timezone")
+    @classmethod
+    def valid_timezone(cls, value: str | None) -> str | None:
+        return validate_timezone(value) if value is not None else None
 
     @field_validator("content")
     @classmethod

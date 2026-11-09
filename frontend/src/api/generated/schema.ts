@@ -2419,6 +2419,11 @@ export interface components {
             power_bi_context?: components["schemas"]["ReportContext"] | null;
             /** Reasoning Effort */
             reasoning_effort?: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") | null;
+            /**
+             * Timezone
+             * @description User's IANA timezone, such as Asia/Kolkata. Omitted values use UTC.
+             */
+            timezone?: string | null;
         };
         /**
          * MessagePage

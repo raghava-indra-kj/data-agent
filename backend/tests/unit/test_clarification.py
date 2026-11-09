@@ -323,7 +323,13 @@ def clarification_messages(original_metadata: dict[str, object]):
 
 @pytest.mark.asyncio
 async def test_answers_continue_the_original_request_with_the_next_round():
-    asked, original = clarification_messages({"instruction_id": "inst-1", "command": "kpi"})
+    reference = {
+        "reference_at": "2026-11-05T18:29:00+00:00", "timezone": "Asia/Kolkata",
+        "timezone_source": "client",
+    }
+    asked, original = clarification_messages({
+        "instruction_id": "inst-1", "command": "kpi", "time_context": reference,
+    })
     service = ConversationService(AsyncMock(), Settings(_env_file=None))
     service.repo = FakeRepo(asked, original)
     service.submit_message = AsyncMock(return_value=("message", "job"))
@@ -341,6 +347,7 @@ async def test_answers_continue_the_original_request_with_the_next_round():
     assert call["payload"].content.startswith("Answers to your questions:")
     assert extra["expanded_prompt"].startswith("Show overdue backlog\n\nAnswers to your questions:")
     assert extra["clarification_round"] == 1
+    assert extra["time_context"] == reference
     assert extra["answers_message_id"] == str(asked.id)
     assert (extra["instruction_id"], extra["command"]) == ("inst-1", "kpi")
     assert str(call["payload"].model_profile_id) == asked.metadata_json["model_profile_id"]

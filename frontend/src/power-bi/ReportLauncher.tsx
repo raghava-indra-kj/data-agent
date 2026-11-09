@@ -1,8 +1,9 @@
 import { Button } from '@heroui/react';
 import { useQuery } from '@tanstack/react-query';
-import { ChartNoAxesCombined, ChevronDown } from 'lucide-react';
+import { ChartNoAxesCombined } from 'lucide-react';
 import { useState } from 'react';
 import { ConnectionPanel, usePowerBIFeatures, usePowerBIIdentity } from './ConnectionPanel';
+import { TipButton } from './TipButton';
 import * as api from './api';
 
 export function ReportLauncher({
@@ -24,20 +25,29 @@ export function ReportLauncher({
   });
   return (
     <div className="pbi-launcher">
-      <Button
-        size="sm"
+      <TipButton
         variant="secondary"
+        label="Power BI reports"
         aria-expanded={open}
         onPress={() => setOpen((value) => !value)}
       >
-        <ChartNoAxesCombined size={15} />
-        Power BI
-        <ChevronDown size={13} />
-      </Button>
+        <ChartNoAxesCombined size={17} />
+      </TipButton>
       {open && (
         <section className="pbi-launcher-menu" aria-label="Power BI reports">
           <ConnectionPanel />
-          {reports.isPending && flags.data?.enabled && <p role="status">Checking report access…</p>}
+          {reports.isPending && flags.data?.enabled && (
+            <div role="status" aria-live="polite" aria-atomic="true" className="pbi-access-loading">
+              <span className="pbi-access-loading-icon" aria-hidden="true">
+                <span className="pbi-canvas-loading-spinner" />
+                <ChartNoAxesCombined size={18} />
+              </span>
+              <div>
+                <strong>Checking report access</strong>
+                <p>This may take a little while.</p>
+              </div>
+            </div>
+          )}
           {reports.error && <p role="alert">{reports.error.message}</p>}
           {reports.data?.length === 0 && <p>No accessible reports are available.</p>}
           {reports.data?.map((report) => (

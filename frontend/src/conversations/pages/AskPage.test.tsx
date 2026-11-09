@@ -39,16 +39,32 @@ vi.mock('../api/conversation-api', () => ({ createConversation }));
 import { AskPage } from './AskPage';
 
 describe('new analysis screen', () => {
+  it('shows the message returned by the API when a source is unavailable', async () => {
+    createConversation.mockRejectedValueOnce({
+      code: 'POWER_BI_TENANT_MISMATCH',
+      message: 'This Power BI source belongs to a different Microsoft tenant.',
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const user = userEvent.setup();
+    render(<QueryClientProvider client={client}><MemoryRouter><AskPage /></MemoryRouter></QueryClientProvider>);
+    await screen.findByRole('button', { name: 'Data scope' });
+    await user.type(screen.getByRole('textbox', { name: 'Ask a question' }), 'Show revenue');
+    await user.click(screen.getByRole('button', { name: 'Send question' }));
+    expect(await screen.findByText('This Power BI source belongs to a different Microsoft tenant.'))
+      .toBeInTheDocument();
+  });
+
   it('sends applied table selection when starting a conversation', async () => {
     createConversation.mockClear();
     createConversation.mockResolvedValue({ id: 'c2' });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const user = userEvent.setup();
     render(<QueryClientProvider client={client}><MemoryRouter><AskPage /></MemoryRouter></QueryClientProvider>);
-    await user.click(await screen.findByRole('button', { name: 'Tables: All tables' }));
+    await user.click(await screen.findByRole('button', { name: 'Data scope' }));
+    await user.click(await screen.findByRole('radio', { name: 'Choose tables' }));
     await user.click(await screen.findByRole('checkbox', { name: /orders/ }));
-    await user.click(screen.getByRole('button', { name: 'Apply' }));
-    expect(screen.getByRole('button', { name: 'Tables: orders' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByRole('button', { name: 'Data scope' })).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: 'Ask a question' }), 'Count orders');
     await user.click(screen.getByRole('button', { name: 'Send question' }));
     await waitFor(() => expect(createConversation).toHaveBeenCalledWith({
@@ -65,25 +81,26 @@ describe('new analysis screen', () => {
     );
     const user = userEvent.setup();
     showPage();
-    await user.click(await screen.findByRole('button', { name: 'Tables: All tables' }));
+    await user.click(await screen.findByRole('button', { name: 'Data scope' }));
+    await user.click(await screen.findByRole('radio', { name: 'Choose tables' }));
     await user.click(await screen.findByRole('checkbox', { name: /orders/ }));
-    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
     cleanup();
     showPage();
 
-    await user.click(await screen.findByRole('button', { name: 'Tables: orders' }));
+    await user.click(await screen.findByRole('button', { name: 'Data scope' }));
     expect(await screen.findByRole('checkbox', { name: /orders/ })).toBeChecked();
     // Cancelled changes do not overwrite the remembered selection.
     await user.click(screen.getByRole('radio', { name: 'All tables' }));
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     cleanup();
     showPage();
-    await user.click(await screen.findByRole('button', { name: 'Tables: orders' }));
+    await user.click(await screen.findByRole('button', { name: 'Data scope' }));
     await user.click(screen.getByRole('radio', { name: 'All tables' }));
-    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    await user.click(screen.getByRole('button', { name: 'Done' }));
     cleanup();
     showPage();
-    expect(await screen.findByRole('button', { name: 'Tables: All tables' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Data scope' })).toBeInTheDocument();
   });
   it('centers a personal welcome and fixes the chosen source when creating the conversation', async () => {
     createConversation.mockResolvedValue({ id: 'c1' });
@@ -106,7 +123,10 @@ describe('new analysis screen', () => {
     ).toBeInTheDocument();
 
     await user.type(screen.getByRole('textbox', { name: 'Ask a question' }), 'Show revenue');
-    expect(screen.getByRole('button', { name: /warehouse/i })).toBeInTheDocument();
+    expect(screen.queryByText('Warehouse')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Data scope' }));
+    expect(screen.getByRole('button', { name: /Warehouse/ })).toHaveAttribute('aria-pressed', 'true');
+    await user.keyboard('{Escape}');
     await user.click(screen.getByRole('button', { name: 'Send question' }));
 
     await waitFor(() =>

@@ -14,6 +14,7 @@ from sqlglot import expressions as exp
 from app.agent.models import JobArtifact, SQLExecution
 from app.agent.repository import AgentExecutionRepository
 from app.agent.sql_safety import SQLSafetyViolation, dialect_for_source
+from app.agent.time_context import RequestTimeContext, is_time_only_question
 from app.data_sources.models import DataSource
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,9 @@ class EvidenceBundle:
     unavailable_information: bool
     management_results: tuple[dict[str, object], ...] = ()
     dax_results: tuple[DaxResultEvidence, ...] = ()
+    time_context: RequestTimeContext | None = None
+    clock_results: tuple[dict[str, object], ...] = ()
+    current_time: dict[str, str] | None = None
 
     @property
     def visible_artifacts(self) -> tuple[ArtifactEvidence, ...]:
@@ -407,6 +411,12 @@ async def collect_evidence(
         ),
         artifacts=visible_artifacts,
         unavailable_information=notes_report_unavailable(analyst_notes),
+        clock_results=tuple(
+            dict(item.output_summary)
+            for item in tools
+            if item.tool_name == "get_current_time" and item.status == "succeeded"
+            and isinstance(item.output_summary, dict) and item.output_summary.get("ok") is True
+        ),
         management_results=tuple(
             {
                 "tool": item.tool_name,
@@ -497,6 +507,10 @@ def validate_evidence(bundle: EvidenceBundle) -> list[str]:
         and not bundle.dax_results
         and not bundle.unavailable_information
         and not bundle.management_results
+        and not (
+            (bundle.time_context is not None or bundle.clock_results)
+            and is_time_only_question(bundle.question)
+        )
     ):
         issues.append(
             "No successful analytical SQL supports the answer, and the notes do not establish "
@@ -570,6 +584,11 @@ def render_evidence_context(bundle: EvidenceBundle) -> str:
         sections.append(
             "VERIFIED WORKSPACE ACTION RESULTS\n"
             + json.dumps(bundle.management_results, ensure_ascii=False, default=str)
+        )
+    if bundle.clock_results:
+        sections.append(
+            "VERIFIED SERVER CLOCK READINGS (date/time facts only, not analytical evidence)\n"
+            + json.dumps(bundle.clock_results, ensure_ascii=False)
         )
     sql_blocks: list[str] = []
     for sql_result in bundle.sql_results:
