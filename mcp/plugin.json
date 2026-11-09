@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "data-agent-mcp",
+  "version": "0.2.0",
+  "description": "Discover MSSQL sources and schemas, manage searchable knowledge, run bounded read-only queries and schedule knowledge refreshes using Windows or SQL authentication.",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Data Agent MCP",
+        "shortDescription": "SQL Server data and knowledge"
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+sources.json
+.env
+*.diagnostics.json
+settings.json
+state/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.lock

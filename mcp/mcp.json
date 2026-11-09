@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "data-agent-mcp": {
+      "type": "stdio",
+      "command": "${PLUGIN_ROOT}/.venv/Scripts/python.exe",
+      "args": ["-m", "data_agent_mcp", "serve", "--sources", "${PLUGIN_ROOT}/sources.json"],
+      "cwd": "${PLUGIN_ROOT}"
+    }
+  }
+}

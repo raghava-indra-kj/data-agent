@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "data-agent-mcp"
+version = "0.2.0"
+description = "Database knowledge MCP plugin with dynamic sources and Windows or password authentication"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastmcp>=2.14.7,<3",
+    "pydantic>=2.11,<3",
+    "pyodbc>=5.3,<6",
+    "sqlglot>=27,<31",
+    "httpx>=0.28,<1",
+    "python-dotenv>=1.1,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<10",
+    "pytest-asyncio>=1,<2",
+    "ruff>=0.12,<1",
+]
+
+[project.scripts]
+data-agent-mcp = "data_agent_mcp.presentation.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/data_agent_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E501"]

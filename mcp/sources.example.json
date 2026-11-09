@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "name": "Example local Windows source",
+      "engine": "mssql",
+      "enabled": false,
+      "connection": {
+        "server": "YOUR_LOCAL_SERVER_OR_INSTANCE",
+        "database": "YOUR_DATABASE",
+        "encryption": {
+          "require_encryption": true,
+          "verify_server_certificate": true
+        },
+        "connect_timeout_seconds": 15,
+        "query_timeout_seconds": 30
+      },
+      "authentication": { "method": "windows" },
+      "access_scope": { "allowed_schemas": ["YOUR_SCHEMA"], "allowed_tables": [] }
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "name": "Example remote SQL login source",
+      "engine": "mssql",
+      "enabled": false,
+      "connection": {
+        "server": "YOUR_REMOTE_SERVER",
+        "database": "YOUR_DATABASE",
+        "port": 1433,
+        "encryption": {
+          "require_encryption": true,
+          "verify_server_certificate": true
+        },
+        "connect_timeout_seconds": 15,
+        "query_timeout_seconds": 30
+      },
+      "authentication": {
+        "method": "username_password",
+        "username": "YOUR_SQL_LOGIN",
+        "password_reference": "DATA_AGENT_REMOTE_SQL_PASSWORD"
+      },
+      "access_scope": { "allowed_schemas": ["YOUR_SCHEMA"], "allowed_tables": [] }
+    }
+  ]
+}

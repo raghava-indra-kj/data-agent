@@ -1,0 +1,59 @@
+version = "0.2.0"
+scope = "Local MSSQL MCP plugin; dynamic sources; no hard-coded database identities"
+status = "implemented; offline verification complete; live database/cloud validation remains owner-controlled"
+
+[architecture]
+domain = "Immutable source, scope, knowledge and settings types; no MCP/driver dependencies"
+application = "Source, catalog, knowledge, query, refresh, schedule and job services against ports"
+infrastructure = "pyodbc MSSQL adapter, file source repository, SQLite metadata, optional cloud embeddings"
+presentation = "FastMCP stdio tools and owner CLI; credentials never accepted in chat"
+future_engines = ["mysql", "postgresql"]
+implemented_engines = ["mssql"]
+
+[configuration]
+sources = "sources.json; create/update via configure_data_source with revision checking"
+limits = "settings.json; every field may be overridden using DATA_AGENT_<UPPERCASE_FIELD>"
+secrets = "Local .env/process environment references; replaceable CredentialResolver port"
+metadata = "state/metadata.sqlite3; configurable path; knowledge, versions, profiles, jobs and schedules only"
+cloud_embeddings = "Optional HTTPS OpenAI-compatible embeddings; local models are not supported"
+activation = "Restart server for settings/environment changes; sources reload per call; refresh ChatGPT metadata after tool changes"
+
+[tools]
+sources = ["list_data_sources", "configure_data_source", "test_connection"]
+discovery = ["list_tables", "get_table_schemas", "get_data_profiles"]
+knowledge = ["list_knowledge", "search_knowledge", "get_knowledge", "save_knowledge", "set_knowledge_enabled", "refresh_generated_knowledge"]
+queries = ["execute_readonly_queries"]
+operations = ["get_jobs", "list_refresh_schedules", "configure_refresh_schedule"]
+
+[knowledge]
+scopes = ["global", "source", "table"]
+kinds = ["schema", "data_profile", "business"]
+granularity = "Multiple documents per table/source, with titles and descriptions"
+retrieval = "Batched IDs, selected scopes, sections and character pagination"
+lifecycle = "Optimistic versioning, retained history, enable/disable; generated refresh preserves authored edits"
+freshness = "Observation time and source revision/fingerprint; profile samples are never complete enumerations"
+
+[large_tables]
+processing = "Filter/join/aggregate inside SQL Server; fetch bounded results"
+profiling = "Bounded TOP sample, labeled as non-random and incomplete; no full scan for profiling"
+budgets = "Configurable rows, bytes, sample sizes, columns, batches, cache age, timeouts and concurrency"
+response_measurement = "Serialized JSON data payload; MCP transport framing and host tokenization are separate"
+large_values = "Configurable SQL Server TEXTSIZE cap for supported text/binary values; possible cell truncation is explicit"
+raw_row_storage = false
+query_policy = "One parsed SELECT/UNION, qualified permitted tables, reviewed built-ins, parameterized values, no writes or external/cross-database operations"
+database_permissions = "SQL validation supplements permissions; owner should configure a read-only database principal"
+
+[schedules]
+mode = "Persisted intervals; separate schedules may use different schema/profile frequencies"
+first_run = "After interval, never during configuration"
+runtime = "Requires running MCP process; no independent Windows service is installed"
+process_ownership = "An OS file lease prevents multiple server processes from scheduling against the same metadata store"
+overlap = "A schedule does not overlap its own unfinished job"
+restart = "Unfinished jobs are marked interrupted; no silent retry"
+
+[delivery]
+steps = ["Implement ports/storage", "Implement all 16 tools", "Add configurable budgets", "Verify offline safety and MCP discovery", "Build wheel", "Restart tunnel and refresh ChatGPT"]
+testing_boundary = "Never connect to remote SQL Server during development; local checks only if needed"
+offline_checks = "102 tests passed; lint/format checks passed; ODBC and real cloud HTTP calls prohibited by test fixtures"
+live_checks = "No live database calls, cloud embedding requests or 50-million-row load test performed for this build"
+not_in_initial_release = ["MySQL/Postgres adapters", "Hosted multi-tenant authentication", "Raw-row vector ingestion", "Automatic database index changes"]
